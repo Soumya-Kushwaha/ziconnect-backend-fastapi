@@ -1,0 +1,12 @@
+# Customizations
+FROM fastapi
+
+WORKDIR /fastapi
+RUN mkdir api worker logic
+COPY api ./api
+COPY worker ./worker
+COPY logic ./logic
+COPY starter.sh .
+RUN chmod +x start.sh
+
+ENTRYPOINT ["/bin/bash"]

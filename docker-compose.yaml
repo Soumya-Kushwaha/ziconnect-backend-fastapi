@@ -6,7 +6,7 @@ services:
     build:
       context: ./fastapi
       dockerfile: Dockerfile
-    image: fastAPI
+    image: fastapi
     command: ["echo", "build finished"]
 
   # RABBITMQ BROKER
@@ -41,27 +41,10 @@ services:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
       - CELERY_QUEUE=${CELERY_QUEUE}
-    command: ./starter.sh --target worker
+    command: ./start.sh --target worker
     depends_on:
       - redis
       - rabbitmq
-
-  # TEST OF MONITOR (CHECK IF IS POSSIBLE TO USE)
-  flower:
-    image: fastapi-celery-main
-    container_name: celery-flower
-    networks:
-      - production-boilerplate
-    environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
-    command: ./starter.sh --target flower
-    ports:
-      - "5003:5003"
-    depends_on:
-      - redis
-      - rabbitmq
-      - celery
 
   # API
   fastapi:
@@ -72,10 +55,27 @@ services:
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
-    command: ./starter.sh --target fastapi
+    command: ./start.sh --target fastapi
     ports:
       - "5004:5080"
       #- "8000:80"
+    depends_on:
+      - redis
+      - rabbitmq
+      - celery
+
+  # TEST OF MONITOR (CHECK IF IS POSSIBLE TO USE)
+  flower:
+    image: fastapi-celery-main
+    container_name: celery-flower
+    networks:
+      - production-boilerplate
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
+    command: ./start.sh --target flower
+    ports:
+      - "5003:5003"
     depends_on:
       - redis
       - rabbitmq
