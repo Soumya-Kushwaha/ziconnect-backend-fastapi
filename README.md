@@ -1,4 +1,4 @@
-[![codecov](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-app-angular/branch/master/graph/badge.svg)](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-app-angular)
+[![codecov](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi/branch/master/graph/badge.svg)](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi)
 
 # Predicting school connectivity and employability in Brazil #
 
