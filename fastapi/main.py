@@ -9,21 +9,21 @@ from worker import create_task
 app = FastAPI()
 
 app.mount("/staticjs", StaticFiles(directory="staticjs"), name="staticjs")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="html")
 
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse("home.html", context={"request": request})
 
 
-@app.post("/tasks", status_code=201)
+@app.post("/predctiontask", status_code=201)
 def run_task(payload = Body(...)):
     task_type = payload["type"]
     task = create_task.delay(int(task_type))
     return JSONResponse({"task_id": task.id})
 
 
-@app.get("/tasks/{task_id}")
+@app.get("/resultask/{task_id}")
 def get_status(task_id):
     task_result = AsyncResult(task_id)
     result = {
