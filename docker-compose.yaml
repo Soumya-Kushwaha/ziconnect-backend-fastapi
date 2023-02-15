@@ -1,86 +1,44 @@
-version: "3"
+version: '3.3'
 
-# DEFAULT SERVICE
 services:
-  _python_image_build:
-    build:
-      context: ./fastapi
-      dockerfile: Dockerfile
-    image: fastapi
-    command: ["echo", "build finished"]
 
-  # RABBITMQ BROKER
-  rabbitmq:
-    build: ./rabbitmq
-    container_name: rabbitmq
-    networks:
-      - production-boilerplate
+  web:
+    build: ./fastapi
     ports:
-      - "5001:5001"
-      - "15001:15001"
+      - 8004:8000
+    command: uvicorn main:app --host 0.0.0.0 --reload
+    volumes:
+      - ./fastapi:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
 
-  # BACKEND MEMORY RESULTS
+  worker:
+    build: ./fastapi
+    command: celery worker --app=worker.celery --loglevel=info --logfile=logs/celery.log
+    volumes:
+      - ./fastapi:/usr/src/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+
   redis:
-    build: ./redis
-    container_name: redis
-    networks:
-      - production-boilerplate
+    image: redis:6-alpine
+
+  dashboard:
+    build: ./fastapi
+    command:  flower --app=worker.celery --port=5555 --broker=redis://redis:6379/0
     ports:
-      - "5002:5002"
-
-  # CELERY WORKER
-  celery:
-    build:
-      context: ./fastapi
-      dockerfile: Dockerfile.main
-    image: fastapi-main
-    container_name: celeryWorker
-    networks:
-      - production-boilerplate
+      - 5556:5555
     environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
-      - CELERY_QUEUE=${CELERY_QUEUE}
-    command: ./start.sh --target worker
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
+      - web
       - redis
-      - rabbitmq
-
-  # API
-  fastapi:
-    image: fastapi-celery-main
-    container_name: fastapi
-    networks:
-      - production-boilerplate
-    environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
-    command: ./start.sh --target fastapi
-    ports:
-      - "5004:5080"
-      #- "8000:80"
-    depends_on:
-      - redis
-      - rabbitmq
-      - celery
-
-  # TEST OF MONITOR (CHECK IF IS POSSIBLE TO USE)
-  flower:
-    image: fastapi-celery-main
-    container_name: celery-flower
-    networks:
-      - production-boilerplate
-    environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_BACKEND_URL=${CELERY_BACKEND_URL}
-    command: ./start.sh --target flower
-    ports:
-      - "5003:5003"
-    depends_on:
-      - redis
-      - rabbitmq
-      - celery
-
-networks:
-  production-boilerplate:
-    driver: bridge
+      - worker
