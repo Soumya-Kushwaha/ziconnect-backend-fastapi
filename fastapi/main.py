@@ -6,24 +6,31 @@ from fastapi.templating import Jinja2Templates
 
 from worker import create_task
 
-app = FastAPI()
+tags_metadata = [
+    {
+        "name": "prediction",
+        "description": "Post de dataSet schema and send them to the prediction model training the model",
+    },
+    {
+        "name": "result",
+        "description": "Based on the taskID returns the prediction model result.",
+    },
+]
+
+
+app = FastAPI(openapi_tags=tags_metadata)
 
 app.mount("/staticjs", StaticFiles(directory="staticjs"), name="staticjs")
 templates = Jinja2Templates(directory="html")
 
-@app.get("/")
-def home(request: Request):
-    return templates.TemplateResponse("home.html", context={"request": request})
-
-
-@app.post("/predctiontask", status_code=201)
+@app.post("/task/prediction", tags=["prediction"], status_code=201)
 def run_task(payload = Body(...)):
-    task_type = payload["type"]
+    task_type = payload["predictionType"]
     task = create_task.delay(int(task_type))
     return JSONResponse({"task_id": task.id})
 
 
-@app.get("/resultask/{task_id}")
+@app.get("/task/result/{task_id}", tags=["result"])
 def get_status(task_id):
     task_result = AsyncResult(task_id)
     result = {
