@@ -18,8 +18,8 @@ tags_metadata = [
 ]
 
 app = FastAPI(openapi_tags=tags_metadata)
-#app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/", StaticFiles(directory="/"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+#app.mount("/", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
 

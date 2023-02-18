@@ -24,7 +24,7 @@ def test_mock_task(mock_run):
 def test_task_status(test_app):
     response = test_app.post(
         "/task/prediction",
-        data=json.dumps({"type": 1})
+        data=json.dumps({"predictionType": 1})
     )
     content = response.json()
     task_id = content["task_id"]
