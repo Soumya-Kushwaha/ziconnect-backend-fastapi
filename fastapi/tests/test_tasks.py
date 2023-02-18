@@ -27,8 +27,7 @@ def test_task_status(test_app):
         data=json.dumps({"type": 1})
     )
     content = response.json()
-    #task_id = content["task_id"]
-    task_id = "asasas-asasas-121212"
+    task_id = content["task_id"]
     assert task_id
 
     response = test_app.get(f"task/result/{task_id}")
