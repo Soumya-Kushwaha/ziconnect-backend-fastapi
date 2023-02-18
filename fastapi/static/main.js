@@ -5,7 +5,7 @@
   })();
   
   function handleClick(type) {
-    fetch('/tasks', {
+    fetch('/task/prediction', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -19,7 +19,7 @@
   }
   
   function getStatus(taskID) {
-    fetch(`/tasks/${taskID}`, {
+    fetch(`/task/result/${taskID}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
