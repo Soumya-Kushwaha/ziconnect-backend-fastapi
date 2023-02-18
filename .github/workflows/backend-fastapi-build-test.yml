@@ -29,9 +29,9 @@ jobs:
           pip install aiofiles==0.6.0
           pip install celery==4.4.7
           pip install fastapi==0.64.0
-          pip install starlette==0.8
+          pip install typing-extensions~=3.7.0
+          pip install starlette
           pip install setuptools wheel twine
-
 
       - name: Install dependencies for CodeCov Test
         run: | 
