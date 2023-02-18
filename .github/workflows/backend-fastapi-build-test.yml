@@ -36,11 +36,6 @@ jobs:
           flags: unittests
           verbose: false
       
-      - name: Run Codecov Report
-        run: codecov
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      
       - name: Install tox and any other packages
         run: pip install tox
       - name: Run tox
