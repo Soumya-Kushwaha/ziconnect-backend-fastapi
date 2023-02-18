@@ -31,13 +31,20 @@ jobs:
       
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
-
+      
+      - name: Run Codecov Report
+        run: codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      
       - name: Install tox and any other packages
         run: pip install tox
       - name: Run tox
         run: tox -e py
+
+      - name: Build package
+        run: python -m build
       
-      - name: Build and publish
-        run: |
-          python setup.py sdist bdist_wheel
-          twine upload dist/*
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
+        
