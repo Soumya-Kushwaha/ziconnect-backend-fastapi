@@ -36,11 +36,6 @@ jobs:
         run: pip install tox
       - name: Run tox
         run: tox -e py
-
-      - name: Run Codecov Report
-        run: codecov
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       
       - name: Build and publish
         run: |
