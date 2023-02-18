@@ -21,9 +21,6 @@ app = FastAPI(openapi_tags=tags_metadata)
 #app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/", StaticFiles(directory="/"), name="static")
 
-#app.mount("/static", StaticFiles(directory=st_abs_file_path), name="static")
-#app.mount("/static", StaticFiles(directory="../static"), name="static")
-
 templates = Jinja2Templates(directory="html")
 
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
