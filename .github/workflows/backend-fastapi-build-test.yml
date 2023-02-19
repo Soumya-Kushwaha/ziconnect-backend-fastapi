@@ -31,16 +31,20 @@ jobs:
           coverage run -m unittest
       
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
           flags: unittests
           verbose: false
       
-      - run: make setup
-      - run: make setup-dev
-      - run: conda info
-      - run: conda list
-      - run: make format
-      - run: make lint
+      - name: Install tox and any other packages
+        run: pip install tox
+      - name: Run tox
+        run: tox -e py
+
+      - name: Build package
+        run: python -m build
+      
+      - name: Publish package
+        uses: pypa/gh-action-pypi-publish@release/v1
         
