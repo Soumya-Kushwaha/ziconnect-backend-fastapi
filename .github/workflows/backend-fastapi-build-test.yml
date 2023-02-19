@@ -31,6 +31,7 @@ jobs:
           pip install fastapi==0.64.0
           pip install jinja2==3.0.3
           pip install pytest==6.2.4
+          pip install kombu==4.6.11
           pip install redis-server
           pip install redis==3.5.3
           pip install typing-extensions~=3.7.0
