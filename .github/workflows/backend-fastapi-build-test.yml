@@ -29,14 +29,16 @@ jobs:
         run: |
           pip install coverage
           coverage run -m unittest
+          pip install codecov
+          pip install pytest-cov
+          pytest --cov=./ --cov-report=xml
+          codecov
       
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          flags: unittests
-          verbose: false
-      
+          
       - name: Install tox and any other packages
         run: pip install tox
       - name: Run tox
