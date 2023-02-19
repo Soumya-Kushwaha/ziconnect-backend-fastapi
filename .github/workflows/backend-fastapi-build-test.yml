@@ -10,35 +10,16 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
+    defaults:
+      run:
+        shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python 3.x
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v2
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: '3.8.x'
-               
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install aiofiles==0.6.0
-          pip install celery==4.4.7
-          pip install fastapi==0.64.0
-          pip install jinja2==3.0.3
-          pip install pytest==6.2.4
-          pip install kombu==4.6.11
-          pip install redis-server
-          pip install redis==3.5.3
-          pip install typing-extensions~=3.7.0
-          pip install requests==2.25.1          
-          pip install uvicorn==0.13.4
-          pip install starlette==0.13.6
-          pip install setuptools wheel twine
+          python-version: 3.8
 
       - name: Install dependencies for CodeCov Test
         run: | 
@@ -54,14 +35,10 @@ jobs:
           flags: unittests
           verbose: false
       
-      - name: Install tox and any other packages
-        run: pip install tox
-      - name: Run tox
-        run: tox -e py
-
-      - name: Build package
-        run: python -m build
-      
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - run: make setup
+      - run: make setup-dev
+      - run: conda info
+      - run: conda list
+      - run: make format
+      - run: make lint
         
