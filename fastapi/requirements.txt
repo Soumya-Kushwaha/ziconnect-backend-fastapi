@@ -9,4 +9,4 @@ redis==3.5.3
 requests==2.25.1
 uvicorn==0.13.4
 starlette==0.13.6
-eventlet
+cffi==1.15.1
