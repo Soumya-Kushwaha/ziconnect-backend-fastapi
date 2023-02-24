@@ -17,7 +17,7 @@ services:
 
   worker:
     build: ./fastapi
-    command: celery worker --app=worker.celery --loglevel=info --logfile=logs/celery.log
+    command: "celery -A worker.celery worker --loglevel=INFO --logfile=logs/celery.log"
     volumes:
       - ./fastapi:/usr/src/app
     environment:
