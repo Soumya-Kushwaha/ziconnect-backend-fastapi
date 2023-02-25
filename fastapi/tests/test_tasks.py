@@ -1,28 +1,30 @@
 import json
 from unittest.mock import patch, call
 from worker import create_task
+import io
 
-"""
-fp = open('sales_2.txt', 'w')
-fp.write('first line')
-fp.close()
+your_data = b'\x02\x1b\x92\x1fs\x96\x97\xe8\x01'
+sd = io.BytesIO()
+sd.write(your_data)
+sd.seek(0)
 
 def test_task():
-    assert create_task.run(1,fp)
-    assert create_task.run(2,fp)
-    assert create_task.run(3,fp)
+    assert create_task.run(1,sd)
+    assert create_task.run(2,sd)
+    assert create_task.run(3,sd)
 
 @patch("worker.create_task.run")
 def test_mock_task(mock_run):
-    assert create_task.run(1,fp)
+    assert create_task.run(1,sd)
     create_task.run.assert_called_once_with(1)
 
-    assert create_task.run(2,fp)
+    assert create_task.run(2,sd)
     assert create_task.run.call_count == 2
 
-    assert create_task.run(3,fp)
+    assert create_task.run(3,sd)
     assert create_task.run.call_count == 3
 
+"""
 def test_task_status(test_app):
     response = test_app.post(
         "/task/prediction",
