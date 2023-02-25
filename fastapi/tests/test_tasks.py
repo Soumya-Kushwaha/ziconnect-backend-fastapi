@@ -2,22 +2,24 @@ import json
 from unittest.mock import patch, call
 from worker import create_task
 
-emptyFile = None
+fp = open('sales_2.txt', 'w')
+fp.write('first line')
+fp.close()
 
 def test_task():
-    assert create_task.run(1,emptyFile)
-    assert create_task.run(2,emptyFile)
-    assert create_task.run(3,emptyFile)
+    assert create_task.run(1,fp)
+    assert create_task.run(2,fp)
+    assert create_task.run(3,fp)
 
 @patch("worker.create_task.run")
 def test_mock_task(mock_run):
-    assert create_task.run(1,emptyFile)
+    assert create_task.run(1,fp)
     create_task.run.assert_called_once_with(1)
 
-    assert create_task.run(2,emptyFile)
+    assert create_task.run(2,fp)
     assert create_task.run.call_count == 2
 
-    assert create_task.run(3,emptyFile)
+    assert create_task.run(3,fp)
     assert create_task.run.call_count == 3
 
 """
