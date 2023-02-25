@@ -1,12 +1,11 @@
+from typing import Union
+from fastapi import FastAPI, Body, Form, Request, File, UploadFile, Path
 from celery.result import AsyncResult
-from fastapi import Body, FastAPI, Form, Request, File, UploadFile, Path
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
-from typing import Union
 from worker import create_task
-import shutil
 
 tags_metadata = [
     {
@@ -32,8 +31,8 @@ templates = Jinja2Templates(directory="html")
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
 def run_task(predictionType: int = Form(...),
              predictionFile: UploadFile = File(...)):
-    task_type = payload["predictionType"]
-    task = create_task(filePrediction.predictionType,filePrediction.file)
+    task_type = predictionType
+    task = create_task(task_type,predictionFile.file)
     return JSONResponse({"task_id": task.id})
 
 

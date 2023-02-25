@@ -11,3 +11,4 @@ uvicorn==0.13.4
 starlette==0.13.6
 cffi==1.15.1
 python-multipart==0.0.5
+debugpy==1.6.5
