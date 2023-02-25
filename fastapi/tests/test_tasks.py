@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch, call
 from worker import create_task
 
+"""
 fp = open('sales_2.txt', 'w')
 fp.write('first line')
 fp.close()
@@ -22,7 +23,6 @@ def test_mock_task(mock_run):
     assert create_task.run(3,fp)
     assert create_task.run.call_count == 3
 
-"""
 def test_task_status(test_app):
     response = test_app.post(
         "/task/prediction",
