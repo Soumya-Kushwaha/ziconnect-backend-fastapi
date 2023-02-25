@@ -3,18 +3,21 @@ from unittest.mock import patch, call
 from worker import create_task
 import io
 
-your_data = b'\x02\x1b\x92\x1fs\x96\x97\xe8\x01'
-sd = io.BytesIO()
-sd.write(your_data)
-sd.seek(0)
-
 def test_task():
+    your_data = b'\x02\x1b\x92\x1fs\x96\x97\xe8\x01'
+    sd = io.BytesIO()
+    sd.write(your_data)
+    sd.seek(0)
     assert create_task.run(1,sd)
     assert create_task.run(2,sd)
     assert create_task.run(3,sd)
 
 @patch("worker.create_task.run")
 def test_mock_task(mock_run):
+    your_data = b'\x02\x1b\x92\x1fs\x96\x97\xe8\x01'
+    sd = io.BytesIO()
+    sd.write(your_data)
+    sd.seek(0)
     assert create_task.run(1,sd)
     create_task.run.assert_called_once_with(1)
 
