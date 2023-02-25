@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - staging
 
   release:
     types: [created]
