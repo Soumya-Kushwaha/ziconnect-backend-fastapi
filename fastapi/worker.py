@@ -18,7 +18,7 @@ def create_task(predictionType,predictionFile):
 
 
 #@celery.task(name="uploadfile_task")
-def uploadFile_task(idTaskCelery, predictionFile):
+async def uploadFile_task(idTaskCelery, predictionFile):
     
     """ CheckFile """
     fileName = predictionFile.filename
@@ -34,5 +34,5 @@ def uploadFile_task(idTaskCelery, predictionFile):
         for rows in csvReader:             
             key = rows['school_name']
             data[key] = rows    
-    return {data}
+    #return {data}
 

@@ -32,7 +32,7 @@ templates = Jinja2Templates(directory="html")
 def run_task(predictionType: int = Form(...),
              predictionFile: UploadFile = File(...)):
     task_type = predictionType
-    task = create_task.delay(task_type,predictionFile)
+    task = create_task(task_type,predictionFile)
     return JSONResponse({"task_id": task.id})
 
 
