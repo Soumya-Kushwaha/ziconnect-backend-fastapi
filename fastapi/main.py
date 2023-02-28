@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from celery import Celery,uuid
+
 
 tags_metadata = [
     {
@@ -39,12 +41,13 @@ def run_task(predictionType: int = Form(...),
     task_name = "uploadFile_task"
 
     """ CheckFile """
-    fileName = predictionFile.filename 
+    taskId = uuid()
+    fileName = taskId + "_" + predictionFile.filename
     targetDir = '/usr/src/app/files/'
     filePath = os.path.join(targetDir, fileName)
     with open(filePath, mode='wb+') as f:
         f.write(predictionFile.file.read())
-
+     
     result = worker.app.send_task(task_name, args=[filePath], kwargs={},queue='celery', routing_key='key_result_processing')
     return JSONResponse({"task_id": result.id})
 
@@ -57,7 +60,6 @@ def get_status(task_id):
         "task_result": task_result.result
     }
     return JSONResponse(result)
-
 
 class EncoderObj(json.JSONEncoder):   
     def default(self, obj):
