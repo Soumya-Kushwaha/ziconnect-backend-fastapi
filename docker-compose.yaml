@@ -17,7 +17,7 @@ services:
 
   worker:
     build: ./fastapi
-    command: "celery -A worker.celery worker --loglevel=INFO --logfile=celery.log"
+    command: "celery -A main.worker worker -l debug -Q celery"
     volumes:
       - ./fastapi:/usr/src/app
     environment:
@@ -32,7 +32,7 @@ services:
 
   dashboard:
     build: ./fastapi
-    command: flower --app=worker.celery --port=5555 --broker=redis://redis:6379/0
+    command: flower --app=worker.app --port=5555 --broker=redis://redis:6379/0
     ports:
       - 5556:5555
     environment:
