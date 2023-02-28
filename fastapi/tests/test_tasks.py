@@ -1,6 +1,6 @@
 import json
 from unittest.mock import patch, call
-from worker import create_task
+from worker import uploadFile_task
 
 
 def test_task():
