@@ -1,7 +1,9 @@
+import base64
 import os
 import json
 from fastapi import FastAPI, Body, Form, Request, File, UploadFile, Path
 import worker 
+from worker import app as celery_app
 from datetime import datetime
 from time import mktime
 from typing import Union
@@ -11,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from celery import Celery,uuid
+
 
 
 tags_metadata = [
@@ -43,12 +46,12 @@ def run_task(predictionType: int = Form(...),
     """ CheckFile """
     taskId = uuid()
     fileName = taskId + "_" + predictionFile.filename
-    targetDir = '/usr/src/app/files/'
+    targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
     filePath = os.path.join(targetDir, fileName)
     with open(filePath, mode='wb+') as f:
         f.write(predictionFile.file.read())
      
-    result = worker.app.send_task(task_name, args=[filePath], kwargs={},queue='celery', routing_key='key_result_processing')
+    result = celery_app.send_task(task_name, args=[filePath], kwargs=None)
     return JSONResponse({"task_id": result.id})
 
 @app.get("/task/result/{task_id}", tags=["result"])
