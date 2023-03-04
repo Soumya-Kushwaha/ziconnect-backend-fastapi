@@ -1,3 +1,9 @@
+pandas==1.3.5
+scikit-learn==1.1.1
+scipy==1.7.3
+xgboost==1.5.0
+numpy==1.24.1
+
 aiofiles==0.5.0
 celery==4.4.7
 fastapi==0.60.1
@@ -14,8 +20,5 @@ python-multipart==0.0.5
 debugpy==1.6.5
 rabbitmq==0.1.0
 
-#Prediction libs
-pandas==1.3.5
-scikit-learn==1.1.1
-scipy==1.7.3
-xgboost==1.5.0
+
+

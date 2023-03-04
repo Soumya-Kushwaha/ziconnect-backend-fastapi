@@ -1,4 +1,3 @@
-import base64
 import os
 import json
 from fastapi import FastAPI, Body, Form, Request, File, UploadFile, Path
@@ -13,13 +12,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from celery import Celery,uuid
-
+import csv
+#import services.internetConnectivityService as internetConnectivityService
 
 
 tags_metadata = [
     {
         "name": "prediction",
-        "description": "Post de dataSet schema and send them to the prediction model training the model",
+        "description": "Post de dataSet(Locality and Schools schema) and send them to the prediction model training the model",
     },
     {
         "name": "result",
@@ -44,25 +44,35 @@ def run_task(localityFile: UploadFile = File(...),
 
         task_name = "uploadFile_task"
         taskId = uuid()
+
+        with open(localityFile, mode='r', encoding='utf-8') as localityLocalFile:
+                csvfLocalityReader = csv.DictReader(localityLocalFile)
+        
+        with open(schoolFile, mode='r', encoding='utf-8') as schoolLocalFile:
+                csvfSchoolReader = csv.DictReader(schoolLocalFile)
+
+        """ Send files to predict """                
+        result = {}  #internetConnectivityService.args(csvfLocalityReader,csvfSchoolReader)
+        return result
         
         """ Import Files """
         
         csvLocalityFile = taskId + "_" + localityFile.filename
         localityFileName = taskId + "_" + csvLocalityFile.filename
         targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        filePath = os.path.join(targetDir, localityFileName)
-        with open(filePath, mode='wb+') as f:
-            f.write(localityFile.file.read())
+        localityLocalFilePath = os.path.join(targetDir, localityFileName)
+        with open(localityLocalFilePath, mode='wb+') as f:
+            f.write(localityLocalFilePath.file.read())
         
         
         csvSchoolFile = taskId + "_" + schoolFile.filename
         schoolFileName = taskId + "_" + csvSchoolFile.filename
         targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        filePath = os.path.join(targetDir, schoolFileName)
-        with open(filePath, mode='wb+') as f:
+        schoolLocalFilePath = os.path.join(targetDir, schoolFileName)
+        with open(schoolLocalFilePath, mode='wb+') as f:
             f.write(schoolFile.file.read())
         
-        result = celery_app.send_task(task_name, args=[filePath], kwargs=None)
+        result = celery_app.send_task(task_name, args=[localityLocalFilePath,schoolLocalFilePath], kwargs=None)
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:

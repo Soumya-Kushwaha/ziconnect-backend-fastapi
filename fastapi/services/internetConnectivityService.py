@@ -322,3 +322,5 @@ if __name__ == '__main__':
     # Test
     predictions = model.predict(connectivity_dl.test_dataset)
     print(sum(predictions) / len(predictions))
+    
+

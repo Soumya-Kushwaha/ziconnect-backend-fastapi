@@ -4,26 +4,27 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 import csv
 import traceback
+import services.internetConnectivityService as internetConnectivityService
 
 app = Celery(__name__, include=['worker', 'celery.app.builtins'])
 app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
 app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
 app.conf.update(result_extended=True)
 celery_log = get_task_logger(__name__)
-rowsLimit = 100
-
 
 @app.task(name="uploadFile_task")
-def uploadFile_task(filePath):
+def uploadFile_task(localityLocalFilePath,schoolLocalFilePath):
     try:
-        """ Convert to JsonFormat """
-        data = {}
-        with open(filePath, mode='r', encoding='utf-8') as csvf:
-                csvReader = csv.DictReader(csvf)
-                for row in csvReader:
-                    key = row['school_name']
-                    data[key] = row
-        return data
+        """ Read local files to predict connectivity """
+        with open(localityLocalFilePath, mode='r', encoding='utf-8') as localityLocalFile:
+                csvfLocalityReader = csv.DictReader(localityLocalFile)
+        
+        with open(schoolLocalFilePath, mode='r', encoding='utf-8') as schoolLocalFile:
+                csvfSchoolReader = csv.DictReader(schoolLocalFile)
+
+        """ Send files to predict """                
+        internetConnectivityService.args(csvfLocalityReader)
+        return {}
 
     except Exception as ex:
         meta = {
