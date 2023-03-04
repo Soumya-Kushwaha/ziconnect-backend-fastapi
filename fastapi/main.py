@@ -38,31 +38,50 @@ app.mount("/static", StaticFiles(directory="/"), name="static")
 templates = Jinja2Templates(directory="html")
 
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
-def run_task(predictionType: int = Form(...),
-             predictionFile: UploadFile = File(...)):
-    task_type = predictionType
-    task_name = "uploadFile_task"
+def run_task(localityFile: UploadFile = File(...),
+             schoolFile: UploadFile = File(...)):
+    try:
 
-    """ CheckFile """
-    taskId = uuid()
-    fileName = taskId + "_" + predictionFile.filename
-    targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
-    filePath = os.path.join(targetDir, fileName)
-    with open(filePath, mode='wb+') as f:
-        f.write(predictionFile.file.read())
-     
-    result = celery_app.send_task(task_name, args=[filePath], kwargs=None)
-    return JSONResponse({"task_id": result.id})
+        task_name = "uploadFile_task"
+        taskId = uuid()
+        
+        """ Import Files """
+        
+        csvLocalityFile = taskId + "_" + localityFile.filename
+        localityFileName = taskId + "_" + csvLocalityFile.filename
+        targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
+        filePath = os.path.join(targetDir, localityFileName)
+        with open(filePath, mode='wb+') as f:
+            f.write(localityFile.file.read())
+        
+        
+        csvSchoolFile = taskId + "_" + schoolFile.filename
+        schoolFileName = taskId + "_" + csvSchoolFile.filename
+        targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
+        filePath = os.path.join(targetDir, schoolFileName)
+        with open(filePath, mode='wb+') as f:
+            f.write(schoolFile.file.read())
+        
+        result = celery_app.send_task(task_name, args=[filePath], kwargs=None)
+        return JSONResponse({"task_id": result.id})
+
+    except Exception as ex:
+        return JSONResponse(content=ex,status_code=400)
+
 
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_status(task_id):
-    task_result =  worker.app.AsyncResult(task_id)
-    result = {
-        "task_id": task_id,
-        "task_status": task_result.status,
-        "task_result": task_result.result
-    }
-    return JSONResponse(result)
+    try:
+        task_result =  worker.app.AsyncResult(task_id)
+        result = {
+            "task_id": task_id,
+            "task_status": task_result.status,
+            "task_result": task_result.result
+        }
+        return JSONResponse(result)
+
+    except Exception as ex:
+        return JSONResponse(content=ex,status_code=400)
 
 class EncoderObj(json.JSONEncoder):   
     def default(self, obj):
