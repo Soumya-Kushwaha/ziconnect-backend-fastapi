@@ -294,6 +294,28 @@ class InternetConnectivityModel:
         return self.model.predict(X)
 
 
+def initialProcess(localities_filepath,schools_filepath):
+    # Files
+    localities_df = pd.read_csv(localities_filepath, sep=',', encoding='utf-8')
+    schools_df = pd.read_csv(schools_filepath, sep=',', encoding='utf-8')
+
+    # Transform the data
+    connectivity_dl = InternetConnectivityDataLoader(localities_df, schools_df)
+    connectivity_dl.setup()
+
+    # Train the model
+    model = InternetConnectivityModel()
+    result = model.fit(connectivity_dl.train_dataset)
+    import json
+    print(json.dumps(result, indent=4))
+
+    # Test
+    predictions = model.predict(connectivity_dl.test_dataset)
+    print(sum(predictions) / len(predictions))
+    
+
+
+
 if __name__ == '__main__':
     import sys
     args = sys.argv

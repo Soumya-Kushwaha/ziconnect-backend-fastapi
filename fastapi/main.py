@@ -12,9 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from celery import Celery,uuid
-import csv
-#import services.internetConnectivityService as internetConnectivityService
-
+from pathlib import Path
 
 tags_metadata = [
     {
@@ -25,6 +23,10 @@ tags_metadata = [
         "name": "result",
         "description": "Based on the taskID returns the prediction model result.",
     },
+    {
+        "name": "healthCheck",
+        "description": "Check application availability.",
+    }
 ]
 
 
@@ -37,6 +39,14 @@ app.mount("/static", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
 
+@app.get('/health', tags=["healthCheck"], status_code=201)
+async def service_health():
+    """Return service health"""
+    return {
+        "ok"
+    }
+
+
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
 def run_task(localityFile: UploadFile = File(...),
              schoolFile: UploadFile = File(...)):
@@ -44,26 +54,14 @@ def run_task(localityFile: UploadFile = File(...),
 
         task_name = "uploadFile_task"
         taskId = uuid()
-
-        with open(localityFile, mode='r', encoding='utf-8') as localityLocalFile:
-                csvfLocalityReader = csv.DictReader(localityLocalFile)
         
-        with open(schoolFile, mode='r', encoding='utf-8') as schoolLocalFile:
-                csvfSchoolReader = csv.DictReader(schoolLocalFile)
-
-        """ Send files to predict """                
-        result = {}  #internetConnectivityService.args(csvfLocalityReader,csvfSchoolReader)
-        return result
-        
-        """ Import Files """
-        
+        """ Import Files (Locality/School) """
         csvLocalityFile = taskId + "_" + localityFile.filename
         localityFileName = taskId + "_" + csvLocalityFile.filename
         targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
         localityLocalFilePath = os.path.join(targetDir, localityFileName)
         with open(localityLocalFilePath, mode='wb+') as f:
-            f.write(localityLocalFilePath.file.read())
-        
+            f.write(localityFile.file.read())
         
         csvSchoolFile = taskId + "_" + schoolFile.filename
         schoolFileName = taskId + "_" + csvSchoolFile.filename
