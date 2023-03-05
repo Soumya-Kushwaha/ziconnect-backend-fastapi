@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from celery import Celery,uuid
-from pathlib import Path
+import subprocess
 
 tags_metadata = [
     {
@@ -51,22 +51,20 @@ async def service_health():
 def run_task(localityFile: UploadFile = File(...),
              schoolFile: UploadFile = File(...)):
     try:
-
         task_name = "uploadFile_task"
+        targetFilePath = '/var/lib/docker/volumes/fastapi-storage/_data/'
         taskId = uuid()
         
         """ Import Files (Locality/School) """
         csvLocalityFile = taskId + "_" + localityFile.filename
-        localityFileName = taskId + "_" + csvLocalityFile.filename
-        targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        localityLocalFilePath = os.path.join(targetDir, localityFileName)
+        localityFileName = taskId + "_" + csvLocalityFile
+        localityLocalFilePath = os.path.join(targetFilePath, localityFileName)
         with open(localityLocalFilePath, mode='wb+') as f:
             f.write(localityFile.file.read())
         
         csvSchoolFile = taskId + "_" + schoolFile.filename
-        schoolFileName = taskId + "_" + csvSchoolFile.filename
-        targetDir = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        schoolLocalFilePath = os.path.join(targetDir, schoolFileName)
+        schoolFileName = taskId + "_" + csvSchoolFile
+        schoolLocalFilePath = os.path.join(targetFilePath, schoolFileName)
         with open(schoolLocalFilePath, mode='wb+') as f:
             f.write(schoolFile.file.read())
         
