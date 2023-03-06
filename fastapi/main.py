@@ -92,13 +92,13 @@ def get_status(task_id):
             }
             return JSONResponse(content=result, status_code=200)
        
-
+        predTExt = task_result.replace('Fitting 10 folds for each of 6 candidates, totalling 60 fits','')
         response = {
             'task_id': task_id,
             'task_state': task_result.state,
             'task_status': task_result.status,
             'task_progression': "null",
-            'task_info': task_result
+            'task_info': predTExt
         }
         return JSONResponse(content=response, status_code=200)
 
