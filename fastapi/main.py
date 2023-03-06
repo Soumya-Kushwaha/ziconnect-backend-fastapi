@@ -10,9 +10,10 @@ from celery.result import AsyncResult
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from celery import Celery,uuid
-import subprocess
+from celery.exceptions import TimeoutError
 
 tags_metadata = [
     {
@@ -79,21 +80,31 @@ def run_task(localityFile: UploadFile = File(...),
 def get_status(task_id):
     try:
 
-        state = worker.app.events.State()
-        task_result =  worker.app.AsyncResult(task_id)
-        taskState = state.tasks.get(task_id)
-        result = {
-            "task_id": task_id,
-            "task_status": task_result.status,
-            "task_result": task_result.result,
-            "task_dateSent": taskState.task.sent,
-            "task_dateStarted": taskState.task.started,
-            "task_runtime": taskState.task.runtime,
-        }
-        return JSONResponse(result)
+        task_result = AsyncResult(task_id)
 
-    except Exception as ex:
-        return JSONResponse(content=ex,status_code=400)
+        if task_result.state == 'FAILURE' or task_result.state == 'PENDING':
+            result = {
+                'task_id': task_id,
+                'task_state': task_result.state,
+                'task_status': task_result.status,
+                'task_progression': "null",
+                'task_info': str(task_result.info)
+            }
+            return JSONResponse(content=result, status_code=200)
+       
+
+        response = {
+            'task_id': task_id,
+            'task_state': task_result.state,
+            'task_status': task_result.status,
+            'task_progression': "null",
+            'task_info': task_result
+        }
+        return JSONResponse(content=response, status_code=200)
+
+
+    except HTTPException as exGet:
+        return HTTPException(status_code=400,detail=exGet)
 
 class EncoderObj(json.JSONEncoder):   
     def default(self, obj):

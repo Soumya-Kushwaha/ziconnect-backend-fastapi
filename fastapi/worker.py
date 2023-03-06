@@ -4,6 +4,7 @@ from celery import Celery
 from celery.utils.log import get_task_logger
 import traceback
 import subprocess
+import json
 
 app = Celery(__name__, include=['worker', 'celery.app.builtins'])
 app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
