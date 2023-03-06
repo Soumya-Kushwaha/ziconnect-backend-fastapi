@@ -81,7 +81,6 @@ def get_status(task_id):
     try:
 
         task_result = AsyncResult(task_id)
-
         if task_result.state == 'FAILURE' or task_result.state == 'PENDING':
             result = {
                 'task_id': task_id,
