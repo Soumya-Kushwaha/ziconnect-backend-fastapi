@@ -78,11 +78,17 @@ def run_task(localityFile: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_status(task_id):
     try:
+
+        state = worker.app.events.State()
         task_result =  worker.app.AsyncResult(task_id)
+        taskState = state.tasks.get(task_id)
         result = {
             "task_id": task_id,
             "task_status": task_result.status,
-            "task_result": task_result.result
+            "task_result": task_result.result,
+            "task_dateSent": taskState.task.sent,
+            "task_dateStarted": taskState.task.started,
+            "task_runtime": taskState.task.runtime,
         }
         return JSONResponse(result)
 
