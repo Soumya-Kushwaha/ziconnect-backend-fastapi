@@ -6,14 +6,17 @@ from worker import app as celery_app
 from datetime import datetime
 from time import mktime
 from typing import Union
+from celery import Celery,uuid
 from celery.result import AsyncResult
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from celery import Celery,uuid
+import requests
+
 from celery.exceptions import TimeoutError
+
 
 tags_metadata = [
     {
@@ -43,10 +46,8 @@ templates = Jinja2Templates(directory="html")
 @app.get('/health', tags=["healthCheck"], status_code=201)
 async def service_health():
     """Return service health"""
-    return {
-        "ok"
-    }
-
+    return JSONResponse(content='ok', status_code=200)
+    
 
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
 def run_task(localityFile: UploadFile = File(...),
@@ -79,30 +80,15 @@ def run_task(localityFile: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_status(task_id):
     try:
-        task_result = AsyncResult(task_id)
-        if task_result.state == 'FAILURE' or task_result.state == 'PENDING':
-            result = {
-                'task_id': task_id,
-                'task_state': task_result.state,
-                'task_status': task_result.status,
-                'task_progression': "null",
-                'task_info': str(task_result.info)
-            }
-            return JSONResponse(content=result, status_code=200)
-       
-        predTExt = task_result.replace('Fitting 10 folds for each of 6 candidates, totalling 60 fits','')
-        response = {
-            'task_id': task_id,
-            'task_state': task_result.state,
-            'task_status': task_result.status,
-            'task_progression': "null",
-            'task_info': predTExt
-        }
-        return JSONResponse(content=response, status_code=200)
+        urlReq =  'http://dashboard:5555/api/tasks' 
 
+        queryParam={'uuid': task_id} 
+        getRespTask = requests.get(urlReq, params=queryParam)
+
+        return JSONResponse(content=getRespTask.json(), status_code=200)
 
     except HTTPException as exGet:
-        return HTTPException(status_code=400,detail=exGet)
+        return JSONResponse(status_code=400,detail=exGet)
 
 class EncoderObj(json.JSONEncoder):   
     def default(self, obj):
