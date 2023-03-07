@@ -3,7 +3,7 @@ import json
 from fastapi import FastAPI, Body, Form, Request, File, UploadFile, Path
 import worker 
 from worker import app as celery_app
-from datetime import datetime
+from datetime import datetime, time
 from time import mktime
 from typing import Union
 from celery import Celery,uuid
@@ -83,9 +83,28 @@ def get_status(task_id):
         urlReq =  'http://dashboard:5555/api/tasks' 
 
         queryParam={'uuid': task_id} 
-        getRespTask = requests.get(urlReq, params=queryParam)
-
-        return JSONResponse(content=getRespTask.json(), status_code=200)
+        getRespTask = requests.get(urlReq, params=queryParam).text
+        
+        parsed_json = json.loads(getRespTask)
+        taskdateStarted = datetime.fromtimestamp(parsed_json[task_id]['started']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        taskReceivedDate = datetime.fromtimestamp(parsed_json[task_id]['received']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        taskTimestamp = datetime.fromtimestamp(parsed_json[task_id]['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+                  
+        response = {
+                 "taskID" : parsed_json[task_id]['uuid'],
+                 "taskName" : parsed_json[task_id]['name'],
+                 "taskState" : parsed_json[task_id]['state'],
+                 "taskStartedDate" : taskdateStarted,     
+                 "taskReceivedDate" : taskReceivedDate,
+                 "taskFailed" : parsed_json[task_id]['failed'],
+                 "taskResult" : parsed_json[task_id]['result'],
+                 "taskTimestamp" : taskTimestamp,
+                 "taskRejected" : parsed_json[task_id]['rejected'],
+                 "taskSucceeded" : parsed_json[task_id]['succeeded'],
+                 "taskException" : parsed_json[task_id]['exception']
+        }
+       
+        return JSONResponse(content=response, status_code=200)
 
     except HTTPException as exGet:
         return JSONResponse(status_code=400,detail=exGet)
