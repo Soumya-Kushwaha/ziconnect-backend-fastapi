@@ -80,30 +80,57 @@ def run_task(localityFile: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_status(task_id):
     try:
-        urlReq =  'http://dashboard:5555/api/tasks' 
+        urlReq =  'http://dashboard:5555/api/task/info/' + task_id
 
-        queryParam={'uuid': task_id} 
-        getRespTask = requests.get(urlReq, params=queryParam).text
+        getRespTask = requests.get(urlReq).text
+
+        if (getRespTask == ''):
+             return JSONResponse(content="TaskID not found", status_code=400)
         
         parsed_json = json.loads(getRespTask)
-        taskdateStarted = datetime.fromtimestamp(parsed_json[task_id]['started']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-        taskReceivedDate = datetime.fromtimestamp(parsed_json[task_id]['received']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-        taskTimestamp = datetime.fromtimestamp(parsed_json[task_id]['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-                  
+        taskState = parsed_json['state']
+        taskTimestamp = None
+        taskSucceeded = None
+        taskFailed = None
+
+        if (taskState == 'STARTED' or taskState == 'PENDING'):
+            taskdateStarted = datetime.fromtimestamp(parsed_json['started']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+            taskReceivedDate = datetime.fromtimestamp(parsed_json['received']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+            taskTimestamp = datetime.fromtimestamp(parsed_json['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+
+            response = {
+                    "taskID" : parsed_json['uuid'],
+                    "taskName" : parsed_json['name'],
+                    "taskState" : parsed_json['state'],
+                    "taskStartedDate" : taskdateStarted,     
+                    "taskReceivedDate" : taskReceivedDate,
+                    "taskFailed" : taskFailed,
+                    "taskResult" : parsed_json['result'],
+                    "taskTimestamp" : taskTimestamp,
+                    "taskRejected" : parsed_json['rejected'],
+                    "taskSucceeded" : taskSucceeded,
+                    "taskException" : parsed_json['exception']
+            }
+            return JSONResponse(content=response, status_code=200)
+        
+
+        taskTimestamp = datetime.fromtimestamp(parsed_json['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        taskSucceeded = datetime.fromtimestamp(parsed_json['succeeded']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        taskFailed = datetime.fromtimestamp(parsed_json['failed']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+
         response = {
-                 "taskID" : parsed_json[task_id]['uuid'],
-                 "taskName" : parsed_json[task_id]['name'],
-                 "taskState" : parsed_json[task_id]['state'],
-                 "taskStartedDate" : taskdateStarted,     
-                 "taskReceivedDate" : taskReceivedDate,
-                 "taskFailed" : parsed_json[task_id]['failed'],
-                 "taskResult" : parsed_json[task_id]['result'],
-                 "taskTimestamp" : taskTimestamp,
-                 "taskRejected" : parsed_json[task_id]['rejected'],
-                 "taskSucceeded" : parsed_json[task_id]['succeeded'],
-                 "taskException" : parsed_json[task_id]['exception']
-        }
-       
+                    "taskID" : parsed_json['uuid'],
+                    "taskName" : parsed_json['name'],
+                    "taskState" : parsed_json['state'],
+                    "taskStartedDate" : taskdateStarted,     
+                    "taskReceivedDate" : taskReceivedDate,
+                    "taskFailed" : taskFailed,
+                    "taskResult" : parsed_json['result'],
+                    "taskTimestamp" : taskTimestamp,
+                    "taskRejected" : parsed_json['rejected'],
+                    "taskSucceeded" : taskSucceeded,
+                    "taskException" : parsed_json['exception']
+            }
         return JSONResponse(content=response, status_code=200)
 
     except HTTPException as exGet:

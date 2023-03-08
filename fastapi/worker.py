@@ -3,8 +3,6 @@ from time import sleep
 from celery import Celery
 from celery.utils.log import get_task_logger
 import traceback
-import subprocess
-import json
 from services.internetConnectivityService import *
 import pandas as pd
 
@@ -27,10 +25,6 @@ def uploadFile_task(localityLocalFilePath,schoolLocalFilePath):
         result = model.fit(connectivity_dl.train_dataset)
         import json
         return json.dumps(result, indent=4)
-
-        #filePrediction = 'services/internetConnectivityService.py'     
-        #pipe = subprocess.run(["python3.9", filePrediction , localityLocalFilePath, schoolLocalFilePath,],stdout=subprocess.PIPE,text=True)
-        #return pipe.stdout
 
     except Exception as ex:
         meta = {
