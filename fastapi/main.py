@@ -1,27 +1,28 @@
 import os
 import json
-from fastapi import FastAPI, Body, Form, Request, File, UploadFile, Path
 import worker 
+import requests
+
 from worker import app as celery_app
-from datetime import datetime, time
+from datetime import datetime
+from pydantic import BaseModel
 from time import mktime
 from typing import Union
-from celery import Celery,uuid
+
+from celery import Celery, uuid
 from celery.result import AsyncResult
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import requests
-
-from celery.exceptions import TimeoutError
 
 
 tags_metadata = [
     {
         "name": "prediction",
-        "description": "Post de dataSet(Locality and Schools schema) and send them to the prediction model training the model",
+        "description": "Post the dataset (Locality and Schools schema) and" \
+                       + " send them to the prediction model training the model",
     },
     {
         "name": "result",
@@ -37,106 +38,92 @@ tags_metadata = [
 class FilePrediction(BaseModel):
     predictionType: int
     file: Union[bytes, None] = None
-    
+
 app = FastAPI(openapi_tags=tags_metadata)
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
 
 @app.get('/health', tags=["healthCheck"], status_code=201)
-async def service_health():
+async def service_health() -> JSONResponse:
     """Return service health"""
     return JSONResponse(content='ok', status_code=200)
-    
 
 @app.post("/task/prediction", tags=["prediction"], status_code=201)
-def run_task(localityFile: UploadFile = File(...),
-             schoolFile: UploadFile = File(...)):
+def run_task(locality_file: UploadFile = File(...),
+             school_file: UploadFile = File(...)
+             ) -> JSONResponse:
     try:
         task_name = "uploadFile_task"
-        targetFilePath = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        taskId = uuid()
-        
-        """ Import Files (Locality/School) """
-        csvLocalityFile = taskId + "_" + localityFile.filename
-        localityFileName = taskId + "_" + csvLocalityFile
-        localityLocalFilePath = os.path.join(targetFilePath, localityFileName)
-        with open(localityLocalFilePath, mode='wb+') as f:
-            f.write(localityFile.file.read())
-        
-        csvSchoolFile = taskId + "_" + schoolFile.filename
-        schoolFileName = taskId + "_" + csvSchoolFile
-        schoolLocalFilePath = os.path.join(targetFilePath, schoolFileName)
-        with open(schoolLocalFilePath, mode='wb+') as f:
-            f.write(schoolFile.file.read())
-        
-        result = celery_app.send_task(task_name, args=[localityLocalFilePath,schoolLocalFilePath], kwargs=None)
+        target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
+        task_id = uuid()
+
+        # Import Files (Locality / School)
+        locality_filename = f'{task_id}_{locality_file.filename}'
+        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        with open(locality_local_filepath, mode='wb+') as f:
+            f.write(locality_file.file.read())
+
+        school_filename = f'{task_id}_{school_file.filename}'
+        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        with open(school_local_filepath, mode='wb+') as f:
+            f.write(school_file.file.read())
+
+        args = [locality_local_filepath, school_local_filepath]
+        result = celery_app.send_task(task_name, args=args, kwargs=None)
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:
-        return JSONResponse(content=ex,status_code=400)
+        return JSONResponse(content=ex, status_code=400)
 
 
 @app.get("/task/result/{task_id}", tags=["result"])
-def get_status(task_id):
+def get_status(task_id: Union[int, str]) -> JSONResponse:
     try:
-        urlReq =  'http://dashboard:5555/api/task/info/' + task_id
+        request_url = f'http://dashboard:5555/api/task/info/{task_id}'
 
-        getRespTask = requests.get(urlReq).text
+        response = requests.get(request_url)
+        if response.text == '':
+            return JSONResponse(content="TaskID not found", status_code=400)
 
-        if (getRespTask == ''):
-             return JSONResponse(content="TaskID not found", status_code=400)
-        
-        parsed_json = json.loads(getRespTask)
-        taskState = parsed_json['state']
-        taskTimestamp = None
-        taskSucceeded = None
-        taskFailed = None
+        parsed_json = json.loads(response.text)
+        def get_date_field(field: str) -> str:
+            if field not in parsed_json:
+                return ''
+            value = parsed_json[field]
+            date_format = '%Y-%m-%dT%H:%M:%S.%f%z'
+            return datetime.fromtimestamp(value).strftime(date_format)
 
-        if (taskState == 'STARTED' or taskState == 'PENDING'):
-            taskdateStarted = datetime.fromtimestamp(parsed_json['started']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-            taskReceivedDate = datetime.fromtimestamp(parsed_json['received']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-            taskTimestamp = datetime.fromtimestamp(parsed_json['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        task_started = get_date_field('started')
+        task_received = get_date_field('received')
+        task_timestamp = get_date_field('timestamp')
+        task_succeeded = None
+        task_failed = None
 
-            response = {
-                    "taskID" : parsed_json['uuid'],
-                    "taskName" : parsed_json['name'],
-                    "taskState" : parsed_json['state'],
-                    "taskStartedDate" : taskdateStarted,     
-                    "taskReceivedDate" : taskReceivedDate,
-                    "taskFailed" : taskFailed,
-                    "taskResult" : parsed_json['result'],
-                    "taskTimestamp" : taskTimestamp,
-                    "taskRejected" : parsed_json['rejected'],
-                    "taskSucceeded" : taskSucceeded,
-                    "taskException" : parsed_json['exception']
-            }
-            return JSONResponse(content=response, status_code=200)
-        
-
-        taskTimestamp = datetime.fromtimestamp(parsed_json['timestamp']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-        taskSucceeded = datetime.fromtimestamp(parsed_json['succeeded']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
-        taskFailed = datetime.fromtimestamp(parsed_json['failed']).strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        task_state = parsed_json['state']
+        if task_state not in ['STARTED', 'PENDING']:
+            task_succeeded = get_date_field('succeeded')
+            task_failed = get_date_field('failed')
 
         response = {
-                    "taskID" : parsed_json['uuid'],
-                    "taskName" : parsed_json['name'],
-                    "taskState" : parsed_json['state'],
-                    "taskStartedDate" : taskdateStarted,     
-                    "taskReceivedDate" : taskReceivedDate,
-                    "taskFailed" : taskFailed,
-                    "taskResult" : parsed_json['result'],
-                    "taskTimestamp" : taskTimestamp,
-                    "taskRejected" : parsed_json['rejected'],
-                    "taskSucceeded" : taskSucceeded,
-                    "taskException" : parsed_json['exception']
-            }
+            "taskID" : parsed_json['uuid'],
+            "taskName" : parsed_json['name'],
+            "taskState" : parsed_json['state'],
+            "taskTimestamp" : task_timestamp,
+            "taskStartedDate" : task_started,     
+            "taskReceivedDate" : task_received,
+            "taskFailedDate" : task_failed,
+            "taskSucceededDate" : task_succeeded,
+            "taskResult" : parsed_json['result'],
+            "taskRejected" : parsed_json['rejected'],
+            "taskException" : parsed_json['exception']
+        }
         return JSONResponse(content=response, status_code=200)
 
-    except HTTPException as exGet:
-        return JSONResponse(status_code=400,detail=exGet)
+    except HTTPException as ex:
+        return JSONResponse(content=ex, status_code=400)
 
-class EncoderObj(json.JSONEncoder):   
+class EncoderObj(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return {
@@ -159,5 +146,3 @@ def dumpEncode(obj):
 # Decoder function
 def loadDecode(obj):
     return json.loads(obj, object_hook=decoderObj)
-
-

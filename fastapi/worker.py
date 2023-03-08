@@ -1,34 +1,55 @@
+import json
 import os
-from time import sleep
+import traceback
+import pandas as pd
+
 from celery import Celery
 from celery.utils.log import get_task_logger
-import traceback
-from services.internetConnectivityService import *
-import pandas as pd
+from services.internetConnectivityService import (
+    InternetConnectivityDataLoader,
+    InternetConnectivityModel,
+    InternetConnectivitySummarizer
+)
 
 app = Celery(__name__, include=['worker'])
 app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
 app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
-app.conf.update(result_extended=True,task_track_started=True)
+app.conf.update(result_extended=True, task_track_started=True)
 celery_log = get_task_logger(__name__)
 
 @app.task(name="uploadFile_task")
-def uploadFile_task(localityLocalFilePath,schoolLocalFilePath):
+def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
     try:
 
-        """ Send files to predict """ 
-        connectivity_dl = InternetConnectivityDataLoader(pd.read_csv(localityLocalFilePath), pd.read_csv(schoolLocalFilePath))
+        # Convert raw tables to dataset
+        locality_df = pd.read_csv(locality_local_filepath, sep=',', encoding='utf-8')
+        school_df = pd.read_csv(school_local_filepath, sep=',', encoding='utf-8')
+        connectivity_dl = InternetConnectivityDataLoader(locality_df, school_df)
         connectivity_dl.setup()
 
         # Train the model
         model = InternetConnectivityModel()
-        result = model.fit(connectivity_dl.train_dataset)
-        import json
-        return json.dumps(result, indent=4)
+        model_metrics = model.fit(connectivity_dl.train_dataset)
+
+        # Predict
+        full_dataset = pd.concat([connectivity_dl.train_dataset,
+                                  connectivity_dl.test_dataset])
+        predictions = model.predict(full_dataset)
+
+        # Connectivity summary
+        full_dataset['internet_availability_prediction'] = predictions
+        summarizer = InternetConnectivitySummarizer()
+        result_summary = summarizer.compute_statistics_by_locality(full_dataset)
+        print(json.dumps(result_summary, indent=4))
+
+        response = {
+            'model_metrics': model_metrics,
+            'result_summary': result_summary
+        }
+        return json.dumps(response, indent=4)
 
     except Exception as ex:
-        meta = {
-            'exc_type': type(ex).__name__,
-            'exc_message': traceback.format_exc().split('\n')
-        }
-    raise meta
+        raise RuntimeError({
+            'exception_type': type(ex).__name__,
+            'exception_message': traceback.format_exc().split('\n')
+        })

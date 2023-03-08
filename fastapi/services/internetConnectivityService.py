@@ -97,7 +97,7 @@ class InternetConnectivityDataLoader:
     def __init__(self,
                  localities: pd.DataFrame,
                  schools: pd.DataFrame,
-                 merge_key: str = 'municipality_code',
+                 merge_key: Optional[str] = 'municipality_code',
                  ) -> None:
         self.localities = localities
         self.schools = schools
@@ -106,7 +106,8 @@ class InternetConnectivityDataLoader:
         # TODO: For now, hardcoded variables
         # After an extensive experimentation, these were the variables choosen
         self.input_columns = ['latitude',  'longitude', 'student_count',
-                              'school_type', 'school_region', 
+                              'school_code', 'school_type', 'school_region', 
+                              'country_code', 'country_name',
                               'state_code', 'state_name',
                               'municipality_code', 'municipality_name']
         self.output_column = 'internet_availability'
@@ -294,6 +295,171 @@ class InternetConnectivityModel:
         return self.model.predict(X)
 
 
+class InternetConnectivitySummarizer:
+
+    def compute_stats_by_columns(self,
+                                 df: pd.DataFrame,
+                                 groupby_columns: List[str]
+                                ) -> pd.DataFrame:
+        """
+        Compute statistics by grouping a Pandas DataFrame by one or more columns.
+
+        Args:
+            df: A Pandas DataFrame containing the data to group and aggregate.
+            groupby_columns: A list of column names to group the data by.
+
+        Returns:
+            A Pandas DataFrame containing the computed statistics.
+
+        Raises:
+            None.
+
+        Examples:
+            >>> df = pd.DataFrame({
+            ...     'state_code': ['CA', 'CA', 'NY', 'NY', 'NY'],
+            ...     'municipality_code': ['LA', 'LA', 'NYC', 'NYC', 'BUF'],
+            ...     'school_code': ['1', '2', '3', '4', '5'],
+            ...     'school_type': ['State', 'Local', 'Federal', 'State', 'State'],
+            ...     'school_region': ['Urban', 'Rural', 'Urban', 'Urban', 'Urban'],
+            ...     'student_count': [100, 200, 150, 300, 250],
+            ...     'internet_availability': ['Yes', 'No', 'Yes', 'NA', 'NA'],
+            ...     'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
+            ... })
+            >>> stats_df = compute_stats_by_columns(df, ['state_code', 'municipality_code'])
+            >>> print(stats_df.to_dict('records'))
+            [
+                {
+                    'state_code': 'CA',
+                    'municipality_code': 'LA',
+                    'state_count': 1,
+                    'municipality_count': 1,
+                    'school_count': 2
+                    'student_count': 300,
+                    'internet_availability_by_value': { 
+                        'Yes': 0, 'No': 0,'NA': 0 
+                    },
+                    'internet_availability_by_school_region': { 
+                        'Urban': { 'Yes': 0, 'No': 0, 'NA': 0 },
+                        ...
+                    }
+                    'internet_availability_by_school_type': {
+                        'State': { 'Yes': 0, 'No': 0, 'NA': 0 },
+                        ...
+                    },
+                    'internet_availability_prediction_by_value': { 
+                        'Yes': 0, 'No': 0,
+                    },
+                    'internet_availability_prediction_by_school_region': { 
+                        'Urban': { 'Yes': 0, 'No': 0 },
+                        ...
+                    }
+                    'internet_availability_prediction_by_school_type': {
+                        'State': { 'Yes': 0, 'No': 0 },
+                        ...
+                    }
+                },
+                ...
+            ]
+
+        Notes:
+            This function computes various statistics based on the data in the input DataFrame `df`,
+            grouped by the columns specified in `groupby_columns`. The function uses the `groupby` and
+            `agg` methods of a Pandas DataFrame to perform the grouping and aggregation.
+
+            The function computes the following statistics for each group:
+            - Number of unique states.
+            - Number of unique municipalities.
+            - Number of unique schools.
+            - Total number of students enrolled.
+            - Distribution of internet availability values.
+            - Distribution of internet availability values by school region.
+            - Distribution of internet availability values by school types
+            - Distribution of internet availability prediction values 
+              (Only schools where 'internet_availability' == 'NA').
+            - Distribution of internet availability prediction values by school region
+              (Only schools where 'internet_availability' == 'NA').
+            - Distribution of internet availability prediction values by school types 
+              (Only schools where 'internet_availability' == 'NA').
+        """
+
+        def parse_bool(value: bool):
+            if value is None or pd.isna(value):
+                return 'NA'
+            return 'Yes' if value else 'No'
+        df = copy.deepcopy(df)
+        df['internet_availability'] = df['internet_availability'].apply(parse_bool)
+        df['internet_availability_prediction'] = df['internet_availability_prediction'].apply(parse_bool)
+
+        # Statistics given Internet Availability
+
+        group_df = df.groupby(groupby_columns)
+        stats_df = group_df.agg(
+            state_count        = ('state_code', lambda x: len(set(x))),
+            municipality_count = ('municipality_code', lambda x: len(set(x))),
+            school_count       = ('school_code', lambda x: len(set(x))),
+            student_count      = ('student_count', 'sum'),
+        )
+
+        stats_df['internet_availability_by_value'] = group_df.apply(
+            lambda x: x.groupby(['internet_availability'])
+                .size().to_dict()
+        )        
+        stats_df['internet_availability_by_school_region'] = group_df.apply(
+            lambda x: x.groupby(['school_region', 'internet_availability'])
+                .size().unstack(fill_value=0).to_dict('index')
+        )
+        stats_df['internet_availability_by_school_type'] = group_df.apply(
+            lambda x: x.groupby(['school_type', 'internet_availability'])
+                .size().unstack(fill_value=0).to_dict('index')
+        )
+
+
+        # Statistics given Internet Availability Prediction
+        # (Only for schools without Internet Availability info)
+
+        stats_df['internet_availability_prediction_by_value'] = group_df.apply(
+            lambda x: x[x['internet_availability'] == 'NA']
+                .groupby('internet_availability_prediction')
+                .size().to_dict()
+        )
+        stats_df['internet_availability_prediction_by_school_region'] = \
+            group_df.apply(
+                lambda x: x[x['internet_availability'] == 'NA']
+                    .groupby(['school_region', 'internet_availability_prediction'])
+                    .size()
+                    .unstack(fill_value=0).to_dict('index')
+            )
+        stats_df['internet_availability_prediction_by_school_type'] = \
+            group_df.apply(
+                lambda x: x[x['internet_availability'] == 'NA']
+                    .groupby(['school_type', 'internet_availability_prediction'])
+                    .size()
+                    .unstack(fill_value=0).to_dict('index')
+            )
+
+        return stats_df
+
+
+    def compute_statistics_by_locality(self, df: pd.DataFrame) -> Dict:
+        """ 
+        """
+
+        groupby_columns = [
+            'country_name', 'country_code',
+            'state_name', 'state_code',
+            'municipality_name', 'municipality_code'
+        ]
+        country_df = self.compute_stats_by_columns(df, groupby_columns[:2]).reset_index()
+        state_df = self.compute_stats_by_columns(df, groupby_columns[:4]).reset_index()
+        municipality_df = self.compute_stats_by_columns(df, groupby_columns).reset_index()
+        stats_df = pd.concat([country_df, municipality_df, state_df])
+        # stats_df = pd.concat([country_df, state_df])
+
+        # From DataFrame -> Json
+        stats_df[groupby_columns] = stats_df[groupby_columns].fillna('')
+        return stats_df.to_dict('records')
+
+
 if __name__ == '__main__':
     import sys
     args = sys.argv
@@ -315,12 +481,27 @@ if __name__ == '__main__':
 
     # Train the model
     model = InternetConnectivityModel()
-    result = model.fit(connectivity_dl.train_dataset)
+    model_metrics = model.fit(connectivity_dl.train_dataset)
     import json
-    print(json.dumps(result, indent=4))
+    print(json.dumps(model_metrics, indent=4))
 
     # Test
-    #predictions = model.predict(connectivity_dl.test_dataset)
-    #print(sum(predictions) / len(predictions))
-      
+    import copy
+    full_dataset = pd.concat([connectivity_dl.train_dataset,
+                              connectivity_dl.test_dataset])
+    predictions = model.predict(full_dataset)
+    print(sum(predictions) / len(predictions))
 
+    # Connectivity summary
+    full_dataset['internet_availability_prediction'] = predictions
+    summarizer = InternetConnectivitySummarizer()
+    result_summary = summarizer.compute_statistics_by_locality(full_dataset)
+    print(json.dumps(result_summary, indent=4))
+
+    response_filepath = 'internet_connectivity_response.json'
+    with open(response_filepath, mode='w', encoding='utf-8') as fp:
+        response = {
+            'model_metrics': model_metrics,
+            'result_summary': result_summary
+        }
+        json.dump(response, fp, indent=4)
