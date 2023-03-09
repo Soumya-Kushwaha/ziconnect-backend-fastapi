@@ -30,6 +30,10 @@ tags_metadata = [
         "description": "Based on the taskID returns the prediction model result.",
     },
     {
+        "name": "info",
+        "description": "Based on the taskID returns the task's informations.",
+    },
+    {
         "name": "healthCheck",
         "description": "Check application availability.",
     }
@@ -60,7 +64,7 @@ async def service_health() -> JSONResponse:
         """Return service health"""        
         return JSONResponse(content='ok', status_code=200)
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=404)
+        return JSONResponse(content=ex, status_code=500)
 
 @app.post("/task/prediction", tags=["prediction"], status_code=200)
 def run_task(locality_file: UploadFile = File(...),
@@ -87,10 +91,27 @@ def run_task(locality_file: UploadFile = File(...),
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=404)
-
+        return JSONResponse(content=ex, status_code=500)
 
 @app.get("/task/result/{task_id}", tags=["result"])
+def get_status(task_id: Union[int, str]) -> JSONResponse:
+    try:
+        request_url = f'http://dashboard:5555/api/task/result/{task_id}'
+        response = requests.get(request_url)
+        if response.text == '':
+            return JSONResponse(content="Result not found for this TaskID", status_code=404)
+
+        resultTask = json.loads(response.text)
+
+        response = {
+            "taskResult" : resultTask['result']
+        }
+        return JSONResponse(content=response, status_code=200)
+
+    except HTTPException as ex:
+        return JSONResponse(content=ex, status_code=500 )
+    
+@app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse:
     try:
         request_url = f'http://dashboard:5555/api/task/info/{task_id}'
@@ -112,6 +133,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
         task_timestamp = get_date_field('timestamp')
         task_succeeded = None
         task_failed = None
+        task_result = None
 
         task_state = parsed_json['state']
         if task_state not in ['STARTED', 'PENDING', 'FAILURE']:
@@ -119,6 +141,9 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
            
         if task_state in ['FAILURE']:
              task_failed = get_date_field('failed')
+             
+        if task_state in ['FAILURE','SUCCESS']:
+            task_result = json.loads(parsed_json['result'])
 
         response = {
             "taskID" : parsed_json['uuid'],
@@ -129,14 +154,14 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
             "taskReceivedDate" : task_received,
             "taskFailedDate" : task_failed,
             "taskSucceededDate" : task_succeeded,
-            "taskResult" : parsed_json['result'],
+            "taskResult" : task_result,
             "taskRejected" : parsed_json['rejected'],
             "taskException" : parsed_json['exception']
         }
         return JSONResponse(content=response, status_code=200)
 
     except HTTPException as ex:
-        return JSONResponse(content=ex, status_code=404)
+        return JSONResponse(content=ex, status_code=500)
 
 class EncoderObj(json.JSONEncoder):
     def default(self, obj):
