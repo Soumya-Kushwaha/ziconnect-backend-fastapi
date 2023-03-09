@@ -11,9 +11,11 @@ import pytest
 endpointDashFlower = 'http://dashboard:5555/'
 
 def test_service_health_ok():      
-        result = service_health()     
-        assert  result.status_code == 200 
+        result = service_health() 
+        dataLoad = json.loads(result.content)    
+        assert  int(dataLoad['status_code']) == 200 
     
 def test_service_health_nok():
-        result = service_health()     
-        assert  result.status_code == 404 
+        result = service_health()
+        dataLoad = json.loads(result.content)      
+        assert  int(dataLoad['status_code']) == 404  
