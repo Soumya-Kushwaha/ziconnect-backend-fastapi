@@ -8,14 +8,16 @@ from main import *
 import pytest
 
 
-endpointDashFlower = 'http://dashboard:5555/'
+endpointDashFlower = 'http://dashboard:5555'
 
 def test_service_health_ok():      
-        result = service_health()
-        dataLoad = result.status_code    
-        assert  dataLoad == 200 
+     response = requests.get(endpointDashFlower + '/health')
+     assert response.status_code == 200
     
 def test_service_health_nok():
-        result = service_health()
-        dataLoad = result.status_code       
-        assert  dataLoad == 404  
+     response = requests.get(endpointDashFlower + '/health')
+     assert response.status_code == 404
+
+def test_service_health_server_nok():
+     response = requests.get(endpointDashFlower + '/health')
+     assert response.status_code == 500
