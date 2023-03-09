@@ -74,7 +74,7 @@ def run_task(locality_file: UploadFile = File(...),
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=400)
+        return JSONResponse(content=ex, status_code=404)
 
 
 @app.get("/task/result/{task_id}", tags=["result"])
@@ -84,7 +84,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
 
         response = requests.get(request_url)
         if response.text == '':
-            return JSONResponse(content="TaskID not found", status_code=400)
+            return JSONResponse(content="TaskID not found", status_code=404)
 
         parsed_json = json.loads(response.text)
         def get_date_field(field: str) -> str:
@@ -121,7 +121,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
         return JSONResponse(content=response, status_code=200)
 
     except HTTPException as ex:
-        return JSONResponse(content=ex, status_code=400)
+        return JSONResponse(content=ex, status_code=404)
 
 class EncoderObj(json.JSONEncoder):
     def default(self, obj):
