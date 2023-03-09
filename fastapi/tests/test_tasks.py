@@ -10,10 +10,11 @@ import pytest
 
 endpointDashFlower = 'http://dashboard:5555/'
 
-def test_service_health_ok():
-        response = service_health()
-        assert (response,JSONResponse(content=response, status_code=200))
+def test_service_health_ok():      
+        result = JSONResponse(content='ok', status_code=200)      
+        assert service_health() == result
     
 def test_service_health_nok():
-        response = service_health()
-        assert (response,JSONResponse(content=response, status_code=404))
+        ex = Exception
+        result = JSONResponse(content=ex, status_code=404)      
+        assert service_health() == result
