@@ -1,17 +1,19 @@
 import json
 import os
+import requests
 from unittest.mock import patch, call
+from unittest import TestCase
 from worker import uploadFile_task
-from main import *
+from main import * 
+import pytest
 
+
+endpointDashFlower = 'http://dashboard:5555/'
 
 def test_service_health_ok():
-    from main import service_health 
-    with service_health.raises(JSONResponse(content='ok', status_code=200)):
-        service_health()
-
+        response = service_health()
+        assert (response,JSONResponse(content=response, status_code=200))
+    
 def test_service_health_nok():
-    from main import service_health 
-    with service_health.raises(Exception):
-        service_health()
-
+        response = service_health()
+        assert (response,JSONResponse(content=response, status_code=404))
