@@ -96,7 +96,7 @@ def run_task(locality_file: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse:
     try:
-        request_url = f'http://dashboard:5555/task/result/{task_id}'
+        request_url = f'http://dashboard:5555/api/task/result/{task_id}'
         response = requests.get(request_url)
         if response.status_code == 404:
             return JSONResponse(content="Result not found for this TaskID", status_code=404)
