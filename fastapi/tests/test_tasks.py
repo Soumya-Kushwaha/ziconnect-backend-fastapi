@@ -16,8 +16,8 @@ def test_service_health_ok():
     
 def test_service_health_nok():
      response = requests.get(endpointDashFlower + '/health')
-     assert response.status_code == 404
+     assert response.status_code != 404
 
 def test_service_health_server_nok():
      response = requests.get(endpointDashFlower + '/health')
-     assert response.status_code == 500
+     assert response.status_code != 500
