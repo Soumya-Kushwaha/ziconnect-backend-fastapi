@@ -8,7 +8,7 @@ from main import *
 import pytest
 
 
-endpointDashFlower = 'http://dashboard:5555'
+endpointDashFlower = 'https://fastapi-homolog.jobzi.com'
 
 def test_service_health_ok():      
      response = requests.get(endpointDashFlower + '/health')
