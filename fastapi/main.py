@@ -47,12 +47,12 @@ templates = Jinja2Templates(directory="html")
 @app.get('/health', tags=["healthCheck"], status_code=200)
 async def service_health() -> JSONResponse:
     try:
-        """Return service health"""
+        """Return service health"""        
         return JSONResponse(content='ok', status_code=200)
     except Exception as ex:
         return JSONResponse(content=ex, status_code=404)
 
-@app.post("/task/prediction", tags=["prediction"], status_code=201)
+@app.post("/task/prediction", tags=["prediction"], status_code=200)
 def run_task(locality_file: UploadFile = File(...),
              school_file: UploadFile = File(...)
              ) -> JSONResponse:
