@@ -104,9 +104,11 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
         task_failed = None
 
         task_state = parsed_json['state']
-        if task_state not in ['STARTED', 'PENDING']:
+        if task_state not in ['STARTED', 'PENDING', 'FAILURE']:
             task_succeeded = get_date_field('succeeded')
-            task_failed = get_date_field('failed')
+           
+        if task_state in ['FAILURE']:
+             task_failed = get_date_field('failed')
 
         response = {
             "taskID" : parsed_json['uuid'],
