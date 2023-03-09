@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 
 tags_metadata = [
@@ -39,7 +40,16 @@ class FilePrediction(BaseModel):
     predictionType: int
     file: Union[bytes, None] = None
 
+origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
+app.add_middleware(
+                    CORSMiddleware,
+                    allow_origins=origins,
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                  )
+
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
