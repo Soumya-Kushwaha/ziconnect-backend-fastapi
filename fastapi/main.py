@@ -133,7 +133,6 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
         task_timestamp = get_date_field('timestamp')
         task_succeeded = None
         task_failed = None
-        task_result = None
 
         task_state = parsed_json['state']
         if task_state not in ['STARTED', 'PENDING', 'FAILURE']:
@@ -141,9 +140,6 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
            
         if task_state in ['FAILURE']:
              task_failed = get_date_field('failed')
-             
-        if task_state in ['FAILURE','SUCCESS']:
-            task_result = json.loads(parsed_json['result'])
 
         response = {
             "taskID" : parsed_json['uuid'],
@@ -154,7 +150,6 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
             "taskReceivedDate" : task_received,
             "taskFailedDate" : task_failed,
             "taskSucceededDate" : task_succeeded,
-            "taskResult" : task_result,
             "taskRejected" : parsed_json['rejected'],
             "taskException" : parsed_json['exception']
         }
