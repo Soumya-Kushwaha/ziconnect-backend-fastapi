@@ -44,7 +44,7 @@ app.mount("/static", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
 
-@app.get('/health', tags=["healthCheck"], status_code=200)
+@app.get("/health", tags=["healthCheck"], status_code=200)
 async def service_health() -> JSONResponse:
     try:
         """Return service health"""        
