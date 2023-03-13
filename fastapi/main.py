@@ -97,17 +97,30 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
             date_format = '%Y-%m-%dT%H:%M:%S.%f%z'
             return datetime.fromtimestamp(value).strftime(date_format)
 
-        task_started = get_date_field('started')
+        task_started = None
         task_received = get_date_field('received')
         task_timestamp = get_date_field('timestamp')
         task_succeeded = None
         task_failed = None
 
         task_state = parsed_json['state']
-        if task_state not in ['STARTED', 'PENDING']:
-            task_succeeded = get_date_field('succeeded')
+        if task_state not in ['STARTED', 'PENDING','RECEIVED','SUCCESS']:
             task_failed = get_date_field('failed')
+        
+        if task_state in ['FAILURE']:
+            task_succeeded = None
+            task_started = get_date_field('started') 
+        
+        if task_state in ['SUCCESS']:
+            task_succeeded = get_date_field('succeeded')
+        
+        if task_state in ['RECEIVED']:
+            task_started = None
 
+        if task_state in ['STARTED', 'PENDING','SUCCESS']:           
+            task_started = get_date_field('started') 
+            task_failed = None
+            
         response = {
             "taskID" : parsed_json['uuid'],
             "taskName" : parsed_json['name'],
