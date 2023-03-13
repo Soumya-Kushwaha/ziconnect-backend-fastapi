@@ -10,12 +10,9 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
-
-from typing import Optional, Dict, Tuple, List, Any
-
-import pandas as pd
 import copy
-
+from typing import Optional, Dict, Tuple, List, Any
+import pandas as pd
 from xgboost import XGBClassifier
 
 class StudentCountEstimator(BaseEstimator, TransformerMixin):
@@ -487,6 +484,7 @@ if __name__ == '__main__':
     print(json.dumps(model_metrics, indent=4))
 
     # Test
+    import copy
     full_dataset = pd.concat([connectivity_dl.train_dataset,
                               connectivity_dl.test_dataset])
     predictions = model.predict(full_dataset)
