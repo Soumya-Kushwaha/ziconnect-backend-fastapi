@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 
 tags_metadata = [
@@ -29,6 +30,10 @@ tags_metadata = [
         "description": "Based on the taskID returns the prediction model result.",
     },
     {
+        "name": "info",
+        "description": "Based on the taskID returns the task's informations.",
+    },
+    {
         "name": "healthCheck",
         "description": "Check application availability.",
     }
@@ -39,7 +44,16 @@ class FilePrediction(BaseModel):
     predictionType: int
     file: Union[bytes, None] = None
 
+origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
+app.add_middleware(
+                    CORSMiddleware,
+                    allow_origins=origins,
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                  )
+
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
 templates = Jinja2Templates(directory="html")
@@ -50,7 +64,7 @@ async def service_health() -> JSONResponse:
         """Return service health"""        
         return JSONResponse(content='ok', status_code=200)
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=404)
+        return JSONResponse(content=ex, status_code=500)
 
 @app.post("/task/prediction", tags=["prediction"], status_code=200)
 def run_task(locality_file: UploadFile = File(...),
@@ -77,10 +91,27 @@ def run_task(locality_file: UploadFile = File(...),
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=404)
-
+        return JSONResponse(content=ex, status_code=500)
 
 @app.get("/task/result/{task_id}", tags=["result"])
+def get_result(task_id: Union[int, str]) -> JSONResponse:
+    try:
+        request_url = f'http://dashboard:5555/api/task/result/{task_id}'
+        response = requests.get(request_url).json()    
+        traskResult = None
+    
+        if (response['state'] in ['FAILURE','SUCCESS']):
+            traskResult = response['result']
+
+        response = {
+            "taskResult" : traskResult 
+        }
+        return JSONResponse(content=response, status_code=200)
+
+    except HTTPException as ex:
+        return JSONResponse(content=ex, status_code=500 )
+    
+@app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse:
     try:
         request_url = f'http://dashboard:5555/api/task/info/{task_id}'
