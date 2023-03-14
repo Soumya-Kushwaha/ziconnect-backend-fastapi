@@ -46,7 +46,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
             'model_metrics': model_metrics,
             'result_summary': result_summary
         }
-        return json.dumps(response, indent=4)
+        return response
 
     except Exception as ex:
         raise RuntimeError({
