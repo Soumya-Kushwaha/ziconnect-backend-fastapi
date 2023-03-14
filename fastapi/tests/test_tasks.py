@@ -11,12 +11,12 @@ import pandas as pd
 client = TestClient(app)
 
 
-def test_health():
+def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
 
 
-def test_taskPrediction():
+def test_postTaskPrediction():
 
     df = pd.DataFrame({
                'state_code': ['CA', 'CA', 'NY', 'NY', 'NY'],
@@ -35,7 +35,6 @@ def test_taskPrediction():
         "school_file": df
     }
 
-
     response = client.post("/task/prediction",  
                             params=dataModeling,
                             headers={ 'Content-Type': 'application/x-www-form-urlencoded'})
@@ -43,7 +42,15 @@ def test_taskPrediction():
     assert response.status_code != 200
 
 
-def test_taskResult():
+def test_getTaskResult():
     task_id = '5984d769-7805-4fdb-81fc-da68fad134fe'
-    response = client.get("/task/result/{task_id}")
+    urlRequest=f"/task/result/{task_id}"
+    response = client.get(urlRequest)
+    assert response.status_code == 200
+
+
+def test_getTaskInfo():
+    task_id = '5984d769-7805-4fdb-81fc-da68fad134fe'
+    urlRequest=f"/task/info/{task_id}"
+    response = client.get(urlRequest)
     assert response.status_code != 200
