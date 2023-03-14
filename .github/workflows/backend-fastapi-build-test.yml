@@ -17,29 +17,24 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
         with:
-          python-version: 3.8
-
+          python-version: '3.10'
+      
       - name: Install dependencies
-        run: pip install -r fastapi/requirements.txt
-
-      - name: Generate Report Codecov
-        run: | 
-            pip install codecov
-            pip install pytest-cov
-            pytest --cov=./ --cov-report=xml
-            codecov
+        run: pip install -r requirements.txt
+      
+      - name: Run tests and collect coverage
+        run: pytest --cov app
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          
-      - name: Install tox and any other packages
-        run: pip install tox
-      - name: Run tox
-        run: tox -e py
+
 
      
