@@ -29,6 +29,9 @@ jobs:
         run: pip install -r fastapi/requirements.txt
 
       - name: Build docker-compose
+        run: docker volume create fastapi-storage
+
+      - name: Build docker-compose
         run: docker-compose build
       
       - name: Up docker-compose
