@@ -1,15 +1,8 @@
-import requests
-import csv
-from unittest.mock import patch, call
-from unittest import TestCase
-from worker import uploadFile_task
+from fastapi.testclient import TestClient
 from main import app
-from starlette.testclient import TestClient
-import json
 import pandas as pd
 
 client = TestClient(app)
-
 
 def test_getHealthCheck():
     response = client.get("/health")
