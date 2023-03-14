@@ -96,7 +96,7 @@ def run_task(locality_file: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse:
     try:
-        request_url = f'http://dashboard:5555/api/task/result/{task_id}'
+        request_url = f'http://0.0.0.0:5556/api/task/result/{task_id}'
         response = requests.get(request_url).json()    
         traskResult = None
     
@@ -114,7 +114,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse:
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse:
     try:
-        request_url = f'http://dashboard:5555/api/task/info/{task_id}'
+        request_url = f'http://0.0.0.0:5556/api/task/info/{task_id}'
 
         response = requests.get(request_url)
         if response.text == '':

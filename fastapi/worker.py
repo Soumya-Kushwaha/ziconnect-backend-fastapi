@@ -12,8 +12,8 @@ from services.internetConnectivityService import (
 )
 
 app = Celery(__name__, include=['worker'])
-app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
-app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/0")
+app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 app.conf.update(result_extended=True, task_track_started=True)
 celery_log = get_task_logger(__name__)
 
