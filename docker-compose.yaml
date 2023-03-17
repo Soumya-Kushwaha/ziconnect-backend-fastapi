@@ -35,7 +35,7 @@ services:
 
   dashboard:
     build: ./fastapi
-    command:  celery --app=celery --broker=redis://localhost:6379/0 flower --host 0.0.0.0 --port=5556
+    command:  celery --app=celery --broker=redis://redis:6379/0 flower --host 0.0.0.0 --port=5556
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
