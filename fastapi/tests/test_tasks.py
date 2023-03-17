@@ -12,6 +12,10 @@ def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
 
+def test_getHealthCheck_erro():
+    response = client.get("/health")
+    assert response.status_code == 500
+
 
 def test_postTaskPrediction():
 
