@@ -35,7 +35,7 @@ jobs:
         run: docker-compose build
       
       - name: Up docker-compose
-        run: docker-compose up
+        run: docker-compose up &
 
       - name: Run tests and collect coverage
         run: pytest --cov app
