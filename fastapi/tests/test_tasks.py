@@ -1,8 +1,12 @@
-from fastapi.testclient import TestClient
+from unittest.mock import patch, call
+from unittest import TestCase
+from worker import uploadFile_task
 from main import app
+from starlette.testclient import TestClient
 import pandas as pd
 
 client = TestClient(app)
+
 
 def test_getHealthCheck():
     response = client.get("/health")
