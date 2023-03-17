@@ -15,7 +15,7 @@ services:
       - CELERY_RESULT_BACKEND=redis://localhost:6379/0
     depends_on:
       - redis
-    network_mode: bridge
+    network_mode: host
 
   worker:
     build: ./fastapi
@@ -29,7 +29,7 @@ services:
     depends_on:
       - web
       - redis
-    network_mode: bridge
+    network_mode: host
 
   redis:
     image: redis:6-alpine
@@ -50,7 +50,7 @@ services:
       - web
       - redis
       - worker
-    network_mode: bridge
+    network_mode: host
 
 volumes:
   fastapi-storage:
