@@ -28,14 +28,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r fastapi/requirements.txt
 
-      - name: Docker volume creation
-        run: docker volume create fastapi-storage
-
-      - name: Build docker-compose
-        run: docker-compose build
-      
-      - name: Up docker-compose
-        run: docker-compose up
+      - name: Run Celery
+        run: celery --app=celery --broker=redis://localhost:6379/0 flower --host 0.0.0.0 --port=5556
 
       - name: Run tests and collect coverage
         run: pytest --cov app
