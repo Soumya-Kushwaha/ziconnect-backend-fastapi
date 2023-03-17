@@ -40,10 +40,13 @@ jobs:
       - name: Run tests and collect coverage
         run: pytest --cov app
 
-      - name: Upload Coverage to Codecov
+      - name: Checkout Coverage to Codecov
         uses: codecov/codecov-action@v3
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
+        
+      - name: Upload Coverage to Codecov        
+        run: |
+          codecov --token=${{ secrets.CODECOV_TOKEN }}
+        
 
 
      
