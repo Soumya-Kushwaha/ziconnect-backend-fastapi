@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r fastapi/requirements.txt
 
-      - name: Run Celery
+      - name: Create storage volume
         run: docker volume create fastapi-storage
 
       - name: Build docker-compose
