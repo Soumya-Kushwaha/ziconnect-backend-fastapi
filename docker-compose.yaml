@@ -51,6 +51,11 @@ services:
       - redis
       - worker
     network_mode: host
+
+networks:
+  host:
+    external: true
+
 volumes:
   fastapi-storage:
     external: true
