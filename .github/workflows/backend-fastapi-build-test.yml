@@ -38,7 +38,7 @@ jobs:
         run: docker-compose up &
 
       - name: Run tests and collect coverage
-        run: pytest --cov app
+        run: pytest --cov fastapi
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
