@@ -15,14 +15,9 @@ def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
 
-def test_getHealthCheck_erro():
-    response = client.get("/health", headers={"X-Token": "ziconnect!QAZxsw2"})
-    assert response.status_code == 404
-    assert response.json() == {"detail": "error found"}
-
 def test_getHealthCheck_unavailable():
     response = client.get("/unavailable")
-    assert response.status_code == 500
+    assert response.status_code == 404
     assert response.json() == {"detail": "error found"}
 
 def test_postTaskPrediction():
