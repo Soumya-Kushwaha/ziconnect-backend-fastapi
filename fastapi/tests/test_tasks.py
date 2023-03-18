@@ -19,7 +19,7 @@ def getHealthCheck_raiseExept():
     raise requests.exceptions.HTTPError()
 
 def test_getHealthCheck_erro(mocker: MockerFixture):
-    mocker.patch("client.test_getHealthCheck", getHealthCheck_raiseExept)
+    mocker.patch(test_getHealthCheck, getHealthCheck_raiseExept)
     response = client.get("/health")
     assert response.status_code == 500
     assert response.json() == {"detail": "error occured"}
