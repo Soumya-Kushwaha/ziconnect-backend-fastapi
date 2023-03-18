@@ -1,3 +1,7 @@
+from fastapi import HTTPException
+from fastapi.testclient import TestClient
+import requests
+from pytest_mock import MockerFixture
 from unittest.mock import patch, call
 from unittest import TestCase
 from worker import uploadFile_task
@@ -7,14 +11,18 @@ import pandas as pd
 
 client = TestClient(app)
 
-
 def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
 
-def test_getHealthCheck_erro():
+def get_value_raise():
+    raise requests.exceptions.HTTPError()
+
+def test_getHealthCheck_erro(mocker: MockerFixture):
+    mocker.patch("app.get_value", get_value_raise)
     response = client.get("/health")
     assert response.status_code == 500
+    assert response.json() == {"detail": "error occured"}
 
 
 def test_postTaskPrediction():
