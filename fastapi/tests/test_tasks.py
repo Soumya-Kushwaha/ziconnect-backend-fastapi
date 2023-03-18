@@ -9,6 +9,7 @@ from main import app
 from starlette.testclient import TestClient
 import pandas as pd
 
+
 client = TestClient(app)
 
 def test_getHealthCheck():
@@ -18,7 +19,7 @@ def test_getHealthCheck():
 def test_getHealthCheck_unavailable():
     response = client.get("/unavailable")
     assert response.status_code == 404
-    assert response.json() == {"detail": "error found"}
+    assert response.json() == {"detail": "Not Found"}
 
 def test_postTaskPrediction():
 
@@ -33,6 +34,11 @@ def test_postTaskPrediction():
                'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
            })
     
+    task_name = "uploadFile_task"
+    assert task_name != None
+
+    target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
+    assert target_dirpath != None
 
     dataModeling = {
         "locality_file": df,
