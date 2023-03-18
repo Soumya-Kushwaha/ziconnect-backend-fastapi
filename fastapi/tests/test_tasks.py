@@ -10,8 +10,6 @@ from worker import uploadFile_task
 from main import app
 from starlette.testclient import TestClient
 import pandas as pd
-import main as mainPd
-
 
 client = TestClient(app)
 
