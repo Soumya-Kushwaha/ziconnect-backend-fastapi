@@ -26,6 +26,11 @@ tags_metadata = [
                        + " send them to the prediction model training the model",
     },
     {
+        "name": "socialimpact",
+        "description": "Post the dataset for social impact analysis and" \
+                       + " send them to the prediction model training the model and present the results",
+    },
+    {
         "name": "result",
         "description": "Based on the taskID returns the prediction model result.",
     },
@@ -85,6 +90,33 @@ def run_task(locality_file: UploadFile = File(...),
         school_local_filepath = os.path.join(target_dirpath, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_file.file.read())
+
+        args = [locality_local_filepath, school_local_filepath]
+        result = celery_app.send_task(task_name, args=args, kwargs=None)
+        return JSONResponse({"task_id": result.id})
+
+    except Exception as ex:
+        return JSONResponse(content=ex, status_code=500)
+
+@app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
+def run_socialimpact_task(locality_history: UploadFile = File(...),
+                        school_history: UploadFile = File(...)
+                        ) -> JSONResponse:
+    try:
+        task_name = "uploadSocialImpactFile_task"
+        target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
+        task_id = uuid()
+
+        # Import Files (Locality / School)
+        locality_filename = f'{task_id}_{locality_history.filename}'
+        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        with open(locality_local_filepath, mode='wb+') as f:
+            f.write(locality_history.file.read())
+
+        school_filename = f'{task_id}_{school_history.filename}'
+        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        with open(school_local_filepath, mode='wb+') as f:
+            f.write(school_history.file.read())
 
         args = [locality_local_filepath, school_local_filepath]
         result = celery_app.send_task(task_name, args=args, kwargs=None)
