@@ -20,7 +20,7 @@ services:
 
   worker:
     build: ./fastapi
-    command: "celery -A main.worker worker -c 2 -l debug -Q celery"
+    command: "celery -A main.worker worker -l debug -Q celery --concurrency=10 -n worker1"
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
@@ -33,6 +33,20 @@ services:
     networks:
       - basenet
 
+  worker2:
+    build: ./fastapi
+    command: "celery -A main.worker worker -l debug -Q celery --concurrency=10 -n worker2"
+    restart: always
+    volumes:
+      - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - web
+      - redis
+    networks:
+      - basenet
   redis:
     image: redis:6-alpine
     restart: always
@@ -56,6 +70,7 @@ services:
       - web
       - redis
       - worker
+      - worker2
 
 networks:
   basenet:
