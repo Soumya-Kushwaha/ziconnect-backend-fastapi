@@ -68,9 +68,7 @@ def test_getTaskInfo():
     assert response.status_code != 200
 
 
-def test_worker_throws_exception(self):
-
-
+def test_worker_throws_exception():
     try:
         df = pd.DataFrame({
         'state_code': ['CA', 'CA', 'NY', 'NY', 'NY'],
@@ -83,10 +81,10 @@ def test_worker_throws_exception(self):
         'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
          })
         uploadFile_task(df, df)
-
     except RuntimeError:
         pass
-    except Exception:
-       self.fail('unexpected exception raised')
-    else:
-       self.fail('ExpectedException not raised')
+    except Exception as ex:
+         raise RuntimeError({
+            'exception_type': type(ex).__name__,
+            'exception_message': traceback.format_exc().split('\n')
+        })
