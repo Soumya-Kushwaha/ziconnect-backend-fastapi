@@ -49,6 +49,9 @@ class FilePrediction(BaseModel):
     predictionType: int
     file: Union[bytes, None] = None
 
+
+urlFlowerApi = 'http://dashboard:5556/api'
+
 origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
 app.add_middleware(
@@ -128,7 +131,7 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse:
     try:
-        request_url = f'http://0.0.0.0:5556/api/task/result/{task_id}'
+        request_url = f'{urlFlowerApi}/task/result/{task_id}'
         response = requests.get(request_url).json()    
         traskResult = None
     
@@ -146,7 +149,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse:
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse:
     try:
-        request_url = f'http://0.0.0.0:5556/api/task/info/{task_id}'
+        request_url = f'{urlFlowerApi}/task/info/{task_id}'
 
         response = requests.get(request_url)
         if response.text == '':
