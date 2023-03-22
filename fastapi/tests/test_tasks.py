@@ -1,12 +1,13 @@
 import json
+import pytest
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import requests
 from pytest_mock import MockerFixture
 from unittest.mock import patch, call
-from unittest import TestCase
-from worker import uploadFile_task
+import unittest 
+from worker import *
 from main import app
 from starlette.testclient import TestClient
 import pandas as pd
@@ -55,13 +56,37 @@ def test_postTaskPrediction():
 
 def test_getTaskResult():
     task_id = '5984d769-7805-4fdb-81fc-da68fad134fe'
-    urlRequest=f"/task/result/{task_id}"
+    urlRequest='/task/result/5984d769-7805-4fdb-81fc-da68fad134fe'
     response = client.get(urlRequest)
     assert response.status_code == 200
 
 
 def test_getTaskInfo():
     task_id = '5984d769-7805-4fdb-81fc-da68fad134fe'
-    urlRequest=f"/task/info/{task_id}"
+    urlRequest='/task/info/5984d769-7805-4fdb-81fc-da68fad134fe'
     response = client.get(urlRequest)
     assert response.status_code != 200
+
+
+def test_worker_throws_exception(self):
+
+
+    try:
+        df = pd.DataFrame({
+        'state_code': ['CA', 'CA', 'NY', 'NY', 'NY'],
+        'municipality_code': ['LA', 'LA', 'NYC', 'NYC', 'BUF'],
+        'school_code': ['1', '2', '3', '4', '5'],
+        'school_type': ['State', 'Local', 'Federal', 'State', 'State'],
+        'school_region': ['Urban', 'Rural', 'Urban', 'Urban', 'Urban'],
+        'student_count': [100, 200, 150, 300, 250],
+        'internet_availability': ['Yes', 'No', 'Yes', 'NA', 'NA'],
+        'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
+         })
+        uploadFile_task(df, df)
+
+    except RuntimeError:
+        pass
+    except Exception:
+       self.fail('unexpected exception raised')
+    else:
+       self.fail('ExpectedException not raised')
