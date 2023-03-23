@@ -12,6 +12,7 @@ from main import app
 from starlette.testclient import TestClient
 import pandas as pd
 from celery import Celery, uuid
+from main import *
 
 client = TestClient(app)
 
@@ -120,3 +121,5 @@ def test_worker_throws_exception():
             'exception_type': type(ex).__name__,
             'exception_message': traceback.format_exc().split('\n')
         })
+
+
