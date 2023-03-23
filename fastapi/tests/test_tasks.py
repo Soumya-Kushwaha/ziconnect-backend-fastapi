@@ -85,13 +85,13 @@ def test_postTaskSocialImpact():
     assert response.status_code != 200
 
 def test_getTaskResult():
-    urlRequest='/task/result/5984d769-7805-4fdb-81fc-da68fad134fe'
+    urlRequest="/task/result/5984d769-7805-4fdb-81fc-da68fad134fe"
     response = client.get(urlRequest)
     assert response.status_code == 200
 
 
 def test_getTaskInfo():
-    urlRequest='/task/info/5984d769-7805-4fdb-81fc-da68fad134fe'
+    urlRequest="/task/info/5984d769-7805-4fdb-81fc-da68fad134fe"
     response = client.get(urlRequest)
     assert response.status_code != 200
 

@@ -8,8 +8,6 @@ services:
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
-    #ports:
-    #  - 8004:8004
     environment:
       - CELERY_BROKER_URL=redis://localhost:6379/0
       - CELERY_RESULT_BACKEND=redis://localhost:6379/0
@@ -47,6 +45,7 @@ services:
   redis:
     image: redis:6-alpine
     restart: always
+    network_mode: host
   
   dashboard:
     build: ./fastapi
@@ -54,8 +53,6 @@ services:
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
-    #ports:
-    #  - "5556:5556"
     environment:
       - CELERY_BROKER_URL=redis://localhost:6379/0
       - CELERY_RESULT_BACKEND=redis://localhost:6379/0
@@ -69,7 +66,3 @@ services:
 volumes:
   fastapi-storage:
     external: true
-
-#networks:
-#  host:
-#    external: true
