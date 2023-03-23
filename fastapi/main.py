@@ -50,7 +50,7 @@ class FilePrediction(BaseModel):
     file: Union[bytes, None] = None
 
 
-urlFlowerApi = 'http://0.0.0.0:5556/api'
+urlFlowerApi = 'http://127.0.0.1:5556/api'
 
 origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
@@ -228,3 +228,7 @@ def dumpEncode(obj):
 # Decoder function
 def loadDecode(obj):
     return json.loads(obj, object_hook=decoderObj)
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8004)
