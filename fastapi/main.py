@@ -50,7 +50,7 @@ class FilePrediction(BaseModel):
     file: Union[bytes, None] = None
 
 
-urlFlowerApi = 'http://localhost:5556/api'
+urlFlowerApi = 'http://dashboard:5556/api'
 
 origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
@@ -64,7 +64,7 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
-templates = Jinja2Templates(directory="html")
+templates = Jinja2Templates(directory="html")   
 
 @app.get("/health", tags=["healthCheck"], status_code=200)
 async def service_health() -> JSONResponse:
