@@ -10,8 +10,6 @@ services:
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
-    networks:
-      - basenet
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -30,8 +28,6 @@ services:
     depends_on:
       - web
       - redis
-    networks:
-      - basenet
 
   worker2:
     build: ./fastapi
@@ -45,13 +41,9 @@ services:
     depends_on:
       - web
       - redis
-    networks:
-      - basenet
   redis:
     image: redis:6-alpine
     restart: always
-    networks:
-      - basenet
  
   dashboard:
     build: ./fastapi
@@ -61,8 +53,6 @@ services:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
     ports:
       - 5556:5556
-    networks:
-      - basenet
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -71,10 +61,6 @@ services:
       - redis
       - worker
       - worker2
-
-networks:
-  basenet:
-
 volumes:
   fastapi-storage:
     external: true

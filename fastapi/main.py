@@ -50,7 +50,7 @@ class FilePrediction(BaseModel):
     file: Union[bytes, None] = None
 
 
-urlFlowerApi = 'http://dashboard:5556/api'
+urlFlowerApi = 'http://0.0.0.0:5556/api'
 
 origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
