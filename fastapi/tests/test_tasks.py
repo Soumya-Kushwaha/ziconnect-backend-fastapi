@@ -11,6 +11,7 @@ from worker import *
 from main import app
 from starlette.testclient import TestClient
 import pandas as pd
+from celery import Celery, uuid
 
 client = TestClient(app)
 
@@ -37,16 +38,19 @@ def test_postTaskPrediction():
            })
     
     task_name = "uploadFile_task"
-    assert task_name != None
-
     target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
-    assert target_dirpath != None
+    task_id = uuid()
+
+    assert task_name == "uploadFile_task"
+    assert target_dirpath == '/var/lib/docker/volumes/fastapi-storage/_data/'
+    assert task_id != None
 
     dataModeling = {
         "locality_file": df,
         "school_file": df
     }
 
+    
     response = client.post("/task/prediction",  
                             params=dataModeling,
                             headers={ 'Content-Type': 'application/x-www-form-urlencoded'})
