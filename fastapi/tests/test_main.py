@@ -80,7 +80,8 @@ def test_postTaskSocialImpact():
 
     dataModeling = {
         "localityHistory_file": df,
-        "schoolHistory_file": df
+        "schoolHistory_file": df,
+        "homogenize_columns": "state_code,hdi,population_size"
     }
 
     response = client.post("/task/socialimpact",  
