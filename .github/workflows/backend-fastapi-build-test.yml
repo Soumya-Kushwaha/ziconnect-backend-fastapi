@@ -40,7 +40,7 @@ jobs:
       - name: Generate Report
         run: |
           pip install coverage
-          pytest --cov fastapi
+          coverage run -m pytest fastapi/tests
           coverage combine
           coverage report
 

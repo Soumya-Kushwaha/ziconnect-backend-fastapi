@@ -16,6 +16,7 @@ from main import *
 
 client = TestClient(app)
 
+
 def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
@@ -38,7 +39,7 @@ def test_postTaskPrediction():
                'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
            })
     
-    task_name = "uploadFile_task"
+    task_name = "uploadFile_task" 
     target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
     task_id = uuid()
 

@@ -51,6 +51,7 @@ class FilePrediction(BaseModel):
 
 
 urlFlowerApi = 'http://0.0.0.0:5556/api'
+target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
 
 origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
@@ -80,7 +81,6 @@ def run_task(locality_file: UploadFile = File(...),
              ) -> JSONResponse:
     try:
         task_name = "uploadFile_task"
-        target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
         task_id = uuid()
 
         # Import Files (Locality / School)
@@ -106,16 +106,16 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
                         school_history: UploadFile = File(...)
                         ) -> JSONResponse:
     try:
-        task_name = "uploadSocialImpactFile_task"
-        target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
-        task_id = uuid()
+        task_name = "uploadSocialImpactFile_task" 
+        task_id = uuid() 
 
-        # Import Files (Locality / School)
+        # Import Files (Locality)
         locality_filename = f'{task_id}_{locality_history.filename}'
-        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        locality_local_filepath = os.path.join(target_dirpath, locality_filename)        
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_history.file.read())
 
+        # Import Files (School)
         school_filename = f'{task_id}_{school_history.filename}'
         school_local_filepath = os.path.join(target_dirpath, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
@@ -154,7 +154,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse:
         response = requests.get(request_url)
         if response.text == '':
             return JSONResponse(content="TaskID not found", status_code=404)
-
+        
         parsed_json = json.loads(response.text)
         def get_date_field(field: str) -> str:
             if field not in parsed_json:
