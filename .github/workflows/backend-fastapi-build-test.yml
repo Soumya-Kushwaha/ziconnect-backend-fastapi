@@ -41,7 +41,8 @@ jobs:
         run: |
           pip install coverage
           pytest --cov fastapi
-          coverage run -m unittest
+          coverage combine
+          coverage report
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v2
