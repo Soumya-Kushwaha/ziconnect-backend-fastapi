@@ -2,6 +2,7 @@ import json
 import os
 import traceback
 import pandas as pd
+import pytest
 
 from celery import Celery
 from celery.utils.log import get_task_logger
@@ -16,7 +17,6 @@ app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 app.conf.update(result_extended=True, task_track_started=True)
 celery_log = get_task_logger(__name__)
-
 
 @app.task(name="uploadFile_task")
 def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
