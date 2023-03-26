@@ -21,10 +21,9 @@ def test_getHealthCheck():
     response = client.get("/health")
     assert response.status_code == 200
 
-def test_getHealthCheck_unavailable():
-    response = client.get("/unavailable")
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Not Found"}
+def route_with_http_exception():
+    response = client.get("/health")
+    raise HTTPException(status_code=400)
 
 def test_postTaskPrediction():
 

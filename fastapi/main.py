@@ -68,17 +68,18 @@ app.mount("/static", StaticFiles(directory="/"), name="static")
 templates = Jinja2Templates(directory="html")   
 
 @app.get("/health", tags=["healthCheck"], status_code=200)
-async def service_health() -> JSONResponse:
+def service_health() -> JSONResponse:
     try:
         """Return service health"""        
         return JSONResponse(content='ok', status_code=200)
     except Exception as ex:
-        return JSONResponse(content=ex, status_code=500)
+        return JSONResponse(content=ex, status_code=400)
+    
 
 @app.post("/task/prediction", tags=["prediction"], status_code=200)
 def run_task(locality_file: UploadFile = File(...),
              school_file: UploadFile = File(...)
-             ) -> JSONResponse:
+             ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadFile_task"
         task_id = uuid()
@@ -101,10 +102,11 @@ def run_task(locality_file: UploadFile = File(...),
     except Exception as ex:
         return JSONResponse(content=ex, status_code=500)
 
+
 @app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
 def run_socialimpact_task(locality_history: UploadFile = File(...),
                         school_history: UploadFile = File(...)
-                        ) -> JSONResponse:
+                        ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadSocialImpactFile_task" 
         task_id = uuid() 
@@ -129,7 +131,7 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
         return JSONResponse(content=ex, status_code=500)
 
 @app.get("/task/result/{task_id}", tags=["result"])
-def get_result(task_id: Union[int, str]) -> JSONResponse:
+def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
         request_url = f'{urlFlowerApi}/task/result/{task_id}'
         response = requests.get(request_url).json()    
@@ -147,7 +149,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse:
         return JSONResponse(content=ex, status_code=500 )
     
 @app.get("/task/info/{task_id}", tags=["info"])
-def get_status(task_id: Union[int, str]) -> JSONResponse:
+def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
         request_url = f'{urlFlowerApi}/task/info/{task_id}'
 

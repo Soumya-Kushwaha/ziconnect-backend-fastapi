@@ -17,6 +17,7 @@ app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:
 app.conf.update(result_extended=True, task_track_started=True)
 celery_log = get_task_logger(__name__)
 
+
 @app.task(name="uploadFile_task")
 def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
     try:
