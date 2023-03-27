@@ -2,7 +2,7 @@ site_name: ZiConnect Backend - AI for education towards employability - Frontend
 site_description: With Unicef Innovation Fund and Giga Project our objective is to leverage the inclusion of young people to better education and more opportunities through internet connectivity.
 site_url: https://unicef.jobzi.com
 
-repo_url: https://github.com/Jobzi-Artificial-Intelligence/ziconnect-app-angular
+repo_url: https://github.com/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi
 edit_uri: edit/gh-pages/mkdocs/docs
 
 theme:

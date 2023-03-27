@@ -1,6 +1,6 @@
 # Jobzi School Connectivity
 
-## Setting up the local environment
+## Setting up the local environment for the backend side
 
 This guide explains how to set up your local environment. It includes information about prerequisites, installation, build and running that app locally to verify your setup.
 
@@ -15,7 +15,7 @@ For more information on installing FastAPI, see https://github.com/tiangolo/fast
 To download and install npm packages, you need an npm package manager. 
 
 
-### Docker ^ Docker-Compose
+### Docker & Docker-Compose
 
 To install the Docker package, open a terminal window and run the following command:
 
@@ -40,9 +40,6 @@ In this project, we used the open source .
 ## Interact with the Celery and Flower Dashboard
 
 After running development server, accessing the.
-
-In this project, we used the open source [Leaflet](https://leafletjs.com/) .
-
 
 ## Build the project
 
