@@ -106,7 +106,7 @@ def run_task(locality_file: UploadFile = File(...),
 @app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
 def run_socialimpact_task(locality_history: UploadFile = File(...),
                         school_history: UploadFile = File(...),
-                        homogenize_columns: list[str] = ... 
+                        homogenize_columns: list[str] = None
                         ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadSocialImpactFile_task" 
