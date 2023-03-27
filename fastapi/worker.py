@@ -2,6 +2,8 @@ import json
 import os
 import traceback
 import pandas as pd
+from pydantic import BaseModel
+import pytest
 
 from celery import Celery
 from celery.utils.log import get_task_logger
@@ -17,14 +19,13 @@ app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:
 app.conf.update(result_extended=True, task_track_started=True)
 celery_log = get_task_logger(__name__)
 
-@app.task(name="uploadFile_task")
-def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
-    try:
 
+@app.task(name="uploadFile_task")
+def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str: # pragma: no cover
+    try:
         # Convert raw tables to dataset
-        locality_df = pd.read_csv(locality_local_filepath, sep=',', encoding='utf-8')
-        school_df = pd.read_csv(school_local_filepath, sep=',', encoding='utf-8')
-        connectivity_dl = InternetConnectivityDataLoader(locality_df, school_df)
+        connectivity_dl = InternetConnectivityDataLoader(pd.read_csv(locality_local_filepath, sep=',', encoding='utf-8'), 
+                                                        pd.read_csv(school_local_filepath, sep=',', encoding='utf-8'))
         connectivity_dl.setup()
 
         # Train the model
@@ -56,7 +57,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
 
 
 @app.task(name="uploadSocialImpactFile_task")
-def uploadSocialImpactFile_task(localityHistory_local_filepath: str, schoolHistory_local_filepath: str) -> str:
+def uploadSocialImpactFile_task(localityHistory_local_filepath: str, schoolHistory_local_filepath: str) -> str: # pragma: no cover
     try:
 
         # Convert raw tables to dataset

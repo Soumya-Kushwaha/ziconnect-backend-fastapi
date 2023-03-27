@@ -20,10 +20,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.9
+        uses: actions/setup-python@master
         with:
-          python-version: '3.10'
+          python-version: '3.9'
       
       - name: Install dependencies
         run: pip3 install -r fastapi/requirements.txt
@@ -37,8 +37,10 @@ jobs:
       - name: Up docker-compose
         run: docker-compose up &
 
-      - name: Run tests and collect coverage
-        run: pytest --cov fastapi
+      - name: Generate Report
+        run: |
+          pip install coverage
+          coverage run -m pytest fastapi/tests
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
