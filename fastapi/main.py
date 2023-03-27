@@ -11,7 +11,7 @@ from typing import Union
 
 from celery import Celery, uuid
 from celery.result import AsyncResult
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Query
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -105,13 +105,14 @@ def run_task(locality_file: UploadFile = File(...),
 
 @app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
 def run_socialimpact_task(locality_history: UploadFile = File(...),
-                        school_history: UploadFile = File(...)
+                        school_history: UploadFile = File(...),
+                        homogenize_columns: list[str] = None
                         ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadSocialImpactFile_task" 
         task_id = uuid() 
 
-        # Import Files (Locality)
+        # Import Files (Locality / School)
         locality_filename = f'{task_id}_{locality_history.filename}'
         locality_local_filepath = os.path.join(target_dirpath, locality_filename)        
         with open(locality_local_filepath, mode='wb+') as f:
