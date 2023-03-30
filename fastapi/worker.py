@@ -74,8 +74,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         if not processed_locality.is_ok or not processed_school.is_ok:
             raise TableSchemaError({
                 'exc_type': TableSchemaError.__name__,
-                'exc_message': 'Table schema error',
-                'schema_error': response
+                'exc_message': response
             })
 
         # Create dataset
