@@ -103,6 +103,8 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
             'schema_error': ex.args
         })
     except Exception as ex:
+        if isinstance(ex, TableSchemaError):
+            raise ex
         raise RuntimeError({
             'exc_type': type(ex).__name__,
             'exc_message': traceback.format_exc().split('\n'),
