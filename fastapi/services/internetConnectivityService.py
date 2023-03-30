@@ -20,13 +20,13 @@ import pandera as pa
 
 # Reference: https://stackoverflow.com/questions/55562696/how-to-replace-missing-values-with-group-mode-in-pandas
 def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str):
-    """ 
-    Calculate a column mode, by group, ignoring null values. 
+    """
+    Calculate a column mode, by group, ignoring null values.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        DataFrame over which to calcualate the mode. 
+        DataFrame over which to calcualate the mode.
     key_columns : list of str
         Columns to groupby for calculation of mode.
     target_column : str
@@ -35,8 +35,8 @@ def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str):
     Returns
     -------
     pandas.DataFrame
-        One row for the mode of value_col per key_cols group. If ties, 
-        returns the one which is sorted first. 
+        One row for the mode of value_col per key_cols group. If ties,
+        returns the one which is sorted first.
     """
     return (df.groupby(key_columns + [target_column]).size()
               .to_frame('counts').reset_index()
@@ -48,7 +48,7 @@ class ProcessedTable(object):
     """ Class to hold processed table information
 
     Parameters
-    ----------        
+    ----------
     is_ok : bool
         Whether table was processed successfully
     initial_df : pandas.DataFrame
@@ -111,7 +111,7 @@ class LocalityTableProcessor:
         ----------
         initial_df : pandas.DataFrame
             Table to process. It must have the following columns:
-            country_code, country_name, state_code, state_name, 
+            country_code, country_name, state_code, state_name,
             municipality_code, municipality_code.
 
         Returns
@@ -212,7 +212,7 @@ class SchoolTableProcessor:
                                                  error='is_valid_municipality_code')
 
         self.schema = pa.DataFrameSchema({
-            'school_code':           pa.Column(str, unique=True, nullable=False), 
+            'school_code':           pa.Column(str, unique=True, nullable=False),
             'school_name':           pa.Column(str, unique=False, nullable=False),
             'school_type':           pa.Column(str, unique=False, nullable=False),
             'school_region':         pa.Column(str, unique=False, nullable=False),
@@ -676,7 +676,7 @@ class InternetConnectivitySummarizer:
         Parameters
         ----------
         df : pd.DataFrame
-            A Pandas DataFrame containing the data to group and aggregate.        
+            A Pandas DataFrame containing the data to group and aggregate.
         groupby_columns : list of str
             A list of column names to group the data by.
 
@@ -880,7 +880,7 @@ if __name__ == '__main__':
 
     if not processed_school.is_ok:
         print("schools")
-        school_error = {            
+        school_error = {
             'is_ok': processed_school.is_ok,
             'failure_cases': processed_school.failure_cases.to_dict(orient='records'),
         }

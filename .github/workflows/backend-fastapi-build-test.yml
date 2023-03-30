@@ -17,29 +17,35 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: conda-incubator/setup-miniconda@v2
+      - name: Checkout
+        uses: actions/checkout@v3
+      
+      - name: Set up Python 3.9
+        uses: actions/setup-python@master
         with:
-          python-version: 3.8
-
+          python-version: '3.9'
+      
       - name: Install dependencies
-        run: pip install -r fastapi/requirements.txt
+        run: pip3 install -r fastapi/requirements.txt
 
-      - name: Generate Report Codecov
-        run: | 
-            pip install codecov
-            pip install pytest-cov
-            pytest --cov=./ --cov-report=xml
-            codecov
+      - name: Create storage volume
+        run: docker volume create fastapi-storage
+
+      - name: Build docker-compose
+        run: docker-compose build
+      
+      - name: Up docker-compose
+        run: docker-compose up &
+
+      - name: Generate Report
+        run: |
+          pip install coverage
+          coverage run -m pytest fastapi/tests
 
       - name: Upload Coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{secrets.CODECOV_TOKEN}}
-          
-      - name: Install tox and any other packages
-        run: pip install tox
-      - name: Run tox
-        run: tox -e py
+
 
      

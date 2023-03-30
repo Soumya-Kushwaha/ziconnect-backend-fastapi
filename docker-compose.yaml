@@ -4,55 +4,65 @@ services:
 
   web:
     build: ./fastapi
-    ports:
-      - 8004:8000
-    command: uvicorn main:app --host 0.0.0.0 --reload
+    command: "uvicorn main:app --host=0.0.0.0 --port 8004 --reload"
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://localhost:6379/0
+      - CELERY_RESULT_BACKEND=redis://localhost:6379/0
+    network_mode: host
     depends_on:
       - redis
 
   worker:
     build: ./fastapi
-    command: "celery -A main.worker worker -l debug -Q celery"
+    command: "celery -A main.worker worker -l debug -Q celery --concurrency=10 -n worker1"
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://localhost:6379/0
+      - CELERY_RESULT_BACKEND=redis://localhost:6379/0
+    network_mode: host
     depends_on:
       - web
       - redis
 
-  redis:
-    image: redis:6-alpine
-    restart: always
-
-  dashboard:
+  worker2:
     build: ./fastapi
-    command:  celery --app=celery --broker=redis://redis:6379/0 flower --host 0.0.0.0 --port=5555
+    command: "celery -A main.worker worker -l debug -Q celery --concurrency=10 -n worker2"
     restart: always
     volumes:
       - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
-    ports:
-      - 5556:5555
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://localhost:6379/0
+      - CELERY_RESULT_BACKEND=redis://localhost:6379/0
+    network_mode: host
+    depends_on:
+      - web
+      - redis
+  redis:
+    image: redis:6-alpine
+    restart: always
+    network_mode: host
+  
+  dashboard:
+    build: ./fastapi
+    command:  celery --app=celery --broker=redis://localhost:6379/0 flower --host 0.0.0.0 --port=5556
+    restart: always
+    volumes:
+      - fastapi-storage:/var/lib/docker/volumes/fastapi-storage/_data
+    environment:
+      - CELERY_BROKER_URL=redis://localhost:6379/0
+      - CELERY_RESULT_BACKEND=redis://localhost:6379/0
+    network_mode: host
     depends_on:
       - web
       - redis
       - worker
+      - worker2
 
 volumes:
   fastapi-storage:
     external: true
-
-networks:
-  local:
-    driver: bridge

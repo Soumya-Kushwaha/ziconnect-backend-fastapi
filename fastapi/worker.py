@@ -1,6 +1,8 @@
 import os
 import traceback
 import pandas as pd
+from pydantic import BaseModel
+import pytest
 
 from celery import Celery
 from celery.exceptions import Reject
@@ -19,6 +21,7 @@ app.conf.result_backend = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:
 app.conf.update(result_extended=True, task_track_started=True,
                 task_store_errors_even_if_ignored=True)
 celery_log = get_task_logger(__name__)
+
 
 @app.task(name="uploadFile_task", acks_late=True)
 def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
@@ -92,6 +95,32 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         return response
     except Reject as ex:
         raise ex
+    except Exception as ex:
+        raise RuntimeError({
+            'exception_type': type(ex).__name__,
+            'exception_message': traceback.format_exc().split('\n')
+        })
+
+
+app.task(name="uploadSocialImpactFile_task", acks_late=True)
+def uploadSocialImpactFile_task(locality_history_local_filepath: str,
+                                school_history_local_filepath: str) -> str:
+    try:
+
+        # Convert raw tables to dataset
+        locality_history_df = pd.read_csv(locality_history_local_filepath, sep=',',
+                                          encoding='utf-8', dtype=object)
+        school_history_df = pd.read_csv(school_history_local_filepath, sep=',',
+                                        encoding='utf-8', dtype=object)
+
+        response = {
+            'scenario_distribution': {
+                'employability_A': [],
+                'employability_B': [],
+            }
+        }
+        return response
+
     except Exception as ex:
         raise RuntimeError({
             'exception_type': type(ex).__name__,
