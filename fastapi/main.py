@@ -7,7 +7,7 @@ from worker import app as celery_app
 from datetime import datetime
 from pydantic import BaseModel
 from time import mktime
-from typing import Union
+from typing import Union, Dict
 
 from celery import Celery, uuid
 from celery.result import AsyncResult
@@ -130,6 +130,14 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
     except Exception as ex:
         return JSONResponse(content=ex, status_code=500)
 
+def parse_failure_exception(exception: str) -> Dict:
+    """Parse the exception message and return the error message"""
+    try:
+        exception = exception.split('(', 1)[1].rsplit(')', 1)[0]
+        return json.loads(exception)
+    except:
+        return {"error": exception}
+
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
@@ -137,8 +145,11 @@ def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
         response = requests.get(request_url).json()
         task_result = None
 
-        if response['state'] in ['REJECT', 'FAILURE','SUCCESS']:
+        task_state = response['state']
+        if task_state == 'SUCCESS':
             task_result = response['result']
+        elif task_state == 'FAILURE':
+            task_result = parse_failure_exception(response['result'])
 
         response = {
             "taskResult" : task_result
@@ -170,6 +181,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
         task_timestamp = get_date_field('timestamp')
         task_succeeded = None
         task_failed = None
+        task_exception = None
 
         task_state = parsed_json['state']
         if task_state not in ['STARTED', 'REJECT', 'PENDING','RECEIVED','SUCCESS']:
@@ -178,6 +190,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
         if task_state in ['FAILURE']:
             task_succeeded = None
             task_started = get_date_field('started')
+            task_exception = parse_failure_exception(parsed_json['exception'])
 
         if task_state in ['SUCCESS']:
             task_succeeded = get_date_field('succeeded')
@@ -200,7 +213,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
             "taskSucceededDate" : task_succeeded,
             "taskResult" : parsed_json['result'],
             "taskRejected" : parsed_json['rejected'],
-            "taskException" : parsed_json['exception']
+            "taskException" : task_exception
         }
         return JSONResponse(content=response, status_code=200)
 
