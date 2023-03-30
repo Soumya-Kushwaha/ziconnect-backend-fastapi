@@ -49,18 +49,17 @@ class FilePrediction(BaseModel):
     file: Union[bytes, None] = None
 
 
-urlFlowerApi = 'http://0.0.0.0:5556/api'
-target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
+FLOWER_API_URL = 'http://0.0.0.0:5556/api'
+TARGET_DIRPATH = '/var/lib/docker/volumes/fastapi-storage/_data/'
 
-origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
 app.add_middleware(
-                    CORSMiddleware,
-                    allow_origins=origins,
-                    allow_credentials=True,
-                    allow_methods=["*"],
-                    allow_headers=["*"],
-                  )
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
@@ -85,12 +84,12 @@ def run_task(locality_file: UploadFile = File(...),
 
         # Import Files (Locality / School)
         locality_filename = f'{task_id}_{locality_file.filename}'
-        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_file.file.read())
 
         school_filename = f'{task_id}_{school_file.filename}'
-        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_file.file.read())
 
@@ -113,13 +112,13 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
 
         # Import Files (Locality / School)
         locality_filename = f'{task_id}_{locality_history.filename}'
-        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_history.file.read())
 
         # Import Files (School)
         school_filename = f'{task_id}_{school_history.filename}'
-        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_history.file.read())
 
@@ -141,7 +140,7 @@ def parse_failure_exception(exception: str) -> Dict:
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
-        request_url = f'{urlFlowerApi}/task/result/{task_id}'
+        request_url = f'{FLOWER_API_URL}/task/result/{task_id}'
         response = requests.get(request_url).json()
         task_result = None
 
@@ -162,7 +161,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
-        request_url = f'{urlFlowerApi}/task/info/{task_id}'
+        request_url = f'{FLOWER_API_URL}/task/info/{task_id}'
 
         response = requests.get(request_url)
         if response.text == '':
@@ -184,21 +183,19 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
         task_exception = None
 
         task_state = parsed_json['state']
-        if task_state not in ['STARTED', 'REJECT', 'PENDING','RECEIVED','SUCCESS']:
+        if task_state not in ['STARTED', 'PENDING','RECEIVED','SUCCESS']:
             task_failed = get_date_field('failed')
 
-        if task_state in ['FAILURE']:
+        if task_state == 'RECEIVED':
+            task_started = None
+        if task_state == 'FAILURE':
             task_succeeded = None
             task_started = get_date_field('started')
             task_exception = parse_failure_exception(parsed_json['exception'])
-
-        if task_state in ['SUCCESS']:
+        if task_state == 'SUCCESS':
             task_succeeded = get_date_field('succeeded')
 
-        if task_state in ['RECEIVED']:
-            task_started = None
-
-        if task_state in ['STARTED', 'REJECT', 'PENDING', 'SUCCESS']:
+        if task_state in ['STARTED', 'PENDING', 'SUCCESS']:
             task_started = get_date_field('started')
             task_failed = None
 

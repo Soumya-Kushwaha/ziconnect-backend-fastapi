@@ -72,7 +72,11 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
 
         # Check whether to reject the task
         if not processed_locality.is_ok or not processed_school.is_ok:
-            raise TableSchemaError(response)
+            raise TableSchemaError({
+                'exc_type': TableSchemaError.__name__,
+                'exc_message': 'Table schema error',
+                'schema_error': response
+            })
 
         # Create dataset
         connectivity_dl = InternetConnectivityDataLoader(
@@ -96,12 +100,6 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         response['model_metrics'] = model_metrics
         response['result_summary'] = result_summary
         return response
-    except TableSchemaError as ex:
-        raise TableSchemaError({
-            'exc_type': type(ex).__name__,
-            'exc_message': 'Table schema error',
-            'schema_error': ex.args
-        })
     except Exception as ex:
         if isinstance(ex, TableSchemaError):
             raise ex
@@ -134,5 +132,6 @@ def uploadSocialImpactFile_task(locality_history_local_filepath: str,
     except Exception as ex:
         raise RuntimeError({
             'exc_type': type(ex).__name__,
-            'exc_message': traceback.format_exc().split('\n')
+            'exc_message': traceback.format_exc().split('\n'),
+            'schema_error': None
         })
