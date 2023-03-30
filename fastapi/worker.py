@@ -102,7 +102,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         })
 
 
-app.task(name="uploadSocialImpactFile_task", acks_late=True)
+@app.task(name="uploadSocialImpactFile_task", acks_late=True)
 def uploadSocialImpactFile_task(locality_history_local_filepath: str,
                                 school_history_local_filepath: str) -> str:
     try:
