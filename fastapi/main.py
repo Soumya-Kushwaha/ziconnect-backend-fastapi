@@ -130,9 +130,13 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
         return JSONResponse(content=ex, status_code=500)
 
 def parse_failure_exception(exception: str) -> Dict:
-    """Parse the exception message and return the error message"""
+    """Parse the exception message and return its content"""
     try:
         exception = exception.split('(', 1)[1].rsplit(')', 1)[0]
+        exception = exception.replace("'", '"')
+        exception = exception.replace("None", 'null')
+        exception = exception.replace("True", 'true')
+        exception = exception.replace("False", 'false')
         return json.loads(exception)
     except:
         return {"error": exception}
