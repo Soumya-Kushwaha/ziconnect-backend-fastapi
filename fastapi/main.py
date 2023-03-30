@@ -138,8 +138,11 @@ def parse_failure_exception(exception: str) -> Dict:
         exception = exception.replace("True", 'true')
         exception = exception.replace("False", 'false')
         return json.loads(exception)
-    except:
-        return {"error": exception}
+    except Exception as ex:
+        raise RuntimeError({
+            'exc_type': type(ex).__name__,
+            'exc_message': ex.args
+        })
 
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover

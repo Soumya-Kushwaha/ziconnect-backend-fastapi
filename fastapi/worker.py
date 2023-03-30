@@ -105,8 +105,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
             raise ex
         raise RuntimeError({
             'exc_type': type(ex).__name__,
-            'exc_message': traceback.format_exc().split('\n'),
-            'schema_error': None
+            'exc_message': ex.args
         })
 
 
@@ -123,8 +122,8 @@ def uploadSocialImpactFile_task(locality_history_local_filepath: str,
 
         response = {
             'scenario_distribution': {
-                'employability_A': [],
-                'employability_B': [],
+                'employability_A': list(range(0, 10)),
+                'employability_B': list(range(5, 15)),
             }
         }
         return response
@@ -132,6 +131,5 @@ def uploadSocialImpactFile_task(locality_history_local_filepath: str,
     except Exception as ex:
         raise RuntimeError({
             'exc_type': type(ex).__name__,
-            'exc_message': traceback.format_exc().split('\n'),
-            'schema_error': None
+            'exc_message': ex.args
         })
