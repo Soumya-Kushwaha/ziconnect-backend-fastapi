@@ -97,15 +97,11 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         response['result_summary'] = result_summary
         return response
     except TableSchemaError as ex:
-        uploadFile_task.update_state(
-            state=states.FAILURE,
-            meta = {
-                'exc_type': type(ex).__name__,
-                'exc_message': 'Table schema error',
-                'schema_error': ex.args
-            }
-        )
-        raise Ignore()
+        raise TableSchemaError({
+            'exc_type': type(ex).__name__,
+            'exc_message': 'Table schema error',
+            'schema_error': ex.args
+        })
     except Exception as ex:
         raise RuntimeError({
             'exc_type': type(ex).__name__,
