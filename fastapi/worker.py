@@ -4,8 +4,8 @@ import pandas as pd
 from pydantic import BaseModel
 import pytest
 
-from celery import Celery
-from celery.exceptions import Reject
+from celery import Celery, states
+from celery.exceptions import Reject, Ignore
 from celery.utils.log import get_task_logger
 from services.internetConnectivityService import (
     SchoolTableProcessor,
@@ -14,6 +14,10 @@ from services.internetConnectivityService import (
     InternetConnectivityModel,
     InternetConnectivitySummarizer
 )
+
+class TableSchemaError(Exception):
+    pass
+
 
 app = Celery(__name__, include=['worker'])
 app.conf.broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
@@ -68,8 +72,7 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
 
         # Check whether to reject the task
         if not processed_locality.is_ok or not processed_school.is_ok:
-            uploadFile_task.update_state(state='REJECT', meta=response)
-            raise Reject(reason=response, requeue=False)
+            raise TableSchemaError(response)
 
         # Create dataset
         connectivity_dl = InternetConnectivityDataLoader(
@@ -93,12 +96,21 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         response['model_metrics'] = model_metrics
         response['result_summary'] = result_summary
         return response
-    except Reject as ex:
-        raise ex
+    except TableSchemaError as ex:
+        uploadFile_task.update_state(
+            state=states.FAILURE,
+            meta = {
+                'exc_type': type(ex).__name__,
+                'exc_message': 'Table schema error',
+                'schema_error': ex.args
+            }
+        )
+        raise Ignore()
     except Exception as ex:
         raise RuntimeError({
-            'exception_type': type(ex).__name__,
-            'exception_message': traceback.format_exc().split('\n')
+            'exc_type': type(ex).__name__,
+            'exc_message': traceback.format_exc().split('\n'),
+            'schema_error': None
         })
 
 
@@ -123,6 +135,6 @@ def uploadSocialImpactFile_task(locality_history_local_filepath: str,
 
     except Exception as ex:
         raise RuntimeError({
-            'exception_type': type(ex).__name__,
-            'exception_message': traceback.format_exc().split('\n')
+            'exc_type': type(ex).__name__,
+            'exc_message': traceback.format_exc().split('\n')
         })
