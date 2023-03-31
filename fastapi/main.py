@@ -131,6 +131,7 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
 
 def parse_failure_exception(exception: str) -> Dict:
     """Parse the exception message and return its content"""
+    raw_exception = exception
     try:
         exception = exception.split('(', 1)[1].rsplit(')', 1)[0]
         exception = exception.replace("'", '"')
@@ -139,10 +140,10 @@ def parse_failure_exception(exception: str) -> Dict:
         exception = exception.replace("False", 'false')
         return json.loads(exception)
     except Exception as ex:
-        raise RuntimeError({
+        return {
             'exc_type': type(ex).__name__,
-            'exc_message': ex.args
-        })
+            'exc_message': raw_exception
+        }
 
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
@@ -199,6 +200,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
             task_succeeded = None
             task_started = get_date_field('started')
             task_exception = parse_failure_exception(parsed_json['exception'])
+            task_exception['exc_message'] = str(task_exception['exc_message'])[:1000]
         if task_state == 'SUCCESS':
             task_succeeded = get_date_field('succeeded')
 
