@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 from typing import Optional, Union, Tuple, Dict, List, Set, Any
 from collections import OrderedDict
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -312,11 +315,11 @@ class SchoolTableProcessor:
             'school_name':           'string',
             'school_type':           'string',
             'school_region':         'string',
-            'student_count':         'int32',
-            'latitude':              'float32',
-            'longitude':             'float32',
+            'student_count':         'Int32',
+            'latitude':              'Float32',
+            'longitude':             'Float32',
             'municipality_code':     'string',
-            'internet_availability': 'bool'
+            'internet_availability': 'boolean'
         })
 
 
@@ -326,6 +329,7 @@ class StudentCountEstimator(BaseEstimator, TransformerMixin):
     LOCALITY_COLUMNS = [
         'municipality_code',
         'state_code',
+        'country_code'
     ]
 
     BY_LOCALITY_REGION_TYPE_KEY = 'by=loc+reg+type'
@@ -391,7 +395,8 @@ class StudentCountEstimator(BaseEstimator, TransformerMixin):
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         # Compute the student count for each school
-        X.loc[:, 'student_count'] = X.apply(self._get_count, axis=1)
+        # X.loc[:, 'student_count'] = X.apply(self._get_count, axis=1)
+        X['student_count'] = X.apply(self._get_count, axis=1)
         return X
 
 
@@ -503,8 +508,7 @@ class InternetConnectivityModel:
         # Since we will have to estimate the student_count, it make sense to use
         # a small count since most school there are few students
         if 'student_count' in input_data.columns:
-            input_data.loc[:, 'student_count'] = \
-                input_data['student_count'].clip(upper=200)
+            input_data['student_count'] = input_data['student_count'].clip(upper=200)
 
         # Variables used in the models
         # Discriteze categorical variables
@@ -584,7 +588,7 @@ class InternetConnectivityModel:
             ('estimator', StudentCountEstimator()),
             ('selector', ColumnTransformer([
                 ('selector', 'passthrough', self.continuous_input_columns),
-                ('encoder', OneHotEncoder(sparse=False), self.categorical_input_columns)
+                ('encoder', OneHotEncoder(sparse_output=False), self.categorical_input_columns)
             ], remainder="drop")),
             ('scaler', MinMaxScaler()),
             ('classifier', classifier)
