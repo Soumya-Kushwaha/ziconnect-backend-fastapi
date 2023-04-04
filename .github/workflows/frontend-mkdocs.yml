@@ -31,8 +31,8 @@ jobs:
       - name: Install mkdocs material
         run: pip install mkdocs-material
       
-      - name: Install dependencies
-        working-directory: mkdocs
+      - name: Create mkdocs 
+        working-directory: /
         run: make install
 
       - name: Build and deploy to GitHub Pages
