@@ -15,8 +15,5 @@ nav:
   - Home: ABOUT.md
   - Contributing: CONTRIBUTING.md
   - Project Charter: PROJECT_CHARTER.md
-#  - Code of Conduct: ../../../CODE_OF_CONDUCT.md
-#  - License: ../../../LICENSE.md
   - FastAPI Setup: FASTAPI_SETUP.md
   - Git Workflow: GIT_WORKFLOW.md
-#  - Project Modules: ../../../README.md
