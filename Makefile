@@ -11,11 +11,11 @@ h help:
 
 install:
 	pip install pip --upgrade
-	pip install -r requirements.txt
+	pip install -r requirements-mkdocs.txt
 
 upgrade:
 	pip install pip --upgrade
-	pip install -r requirements.txt --upgrade
+	pip install -r requirements-mkdocs.txt --upgrade
 
 
 s serve:
