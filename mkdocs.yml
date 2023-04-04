@@ -15,7 +15,7 @@ theme:
   - navigation.tabs.sticky
 
 nav:
-  - Home: ABOUT.md
+  - Home: docs/ABOUT.md
   - Code of Conduct: CODE_OF_CONDUCT.md
   - License: LICENSE.md
   - Contributing: docs/CONTRIBUTING.md
