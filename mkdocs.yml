@@ -3,7 +3,7 @@ site_description: With Unicef Innovation Fund and Giga Project our objective is 
 site_url: https://unicef.jobzi.com
 
 repo_url: https://github.com/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi
-edit_uri: edit/gh-pages/mkdocs/docs
+edit_uri: edit/gh-pages/docs
 
 plugins:
   - include-markdown
