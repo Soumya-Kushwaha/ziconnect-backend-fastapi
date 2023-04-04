@@ -26,15 +26,15 @@ jobs:
         run: pip install mkdocs-include-markdown-plugin
 
       - name: Install dependencies
-        run: pip install -r mkdocs/requirements.txt
+        run: pip install -r requirements-mkdocs.txt
 
       - name: Install mkdocs material
         run: pip install mkdocs-material
       
       - name: Create mkdocs 
-        working-directory: mkdocs
+        working-directory: .
         run: make install
 
       - name: Build and deploy to GitHub Pages
-        working-directory: mkdocs
+        working-directory: .
         run: make deploy
