@@ -5,6 +5,9 @@ site_url: https://unicef.jobzi.com
 repo_url: https://github.com/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi
 edit_uri: edit/gh-pages/mkdocs/docs
 
+plugins:
+  - include-markdown
+
 theme:
   name: material
   features:
@@ -13,7 +16,10 @@ theme:
 
 nav:
   - Home: ABOUT.md
+  - Code of Conduct: ../CODE_OF_CONDUCT.md
+  - License: ../LICENSE.md
   - Contributing: CONTRIBUTING.md
   - Project Charter: PROJECT_CHARTER.md
   - FastAPI Setup: FASTAPI_SETUP.md
   - Git Workflow: GIT_WORKFLOW.md
+  - Project Modules: ../README.md
