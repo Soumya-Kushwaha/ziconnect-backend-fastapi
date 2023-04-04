@@ -15,11 +15,4 @@ theme:
   - navigation.tabs.sticky
 
 nav:
-  - Home: docs/ABOUT.md
-  - Code of Conduct: CODE_OF_CONDUCT.md
   - License: LICENSE.md
-  - Contributing: docs/CONTRIBUTING.md
-  - Project Charter: docs/ROJECT_CHARTER.md
-  - FastAPI Setup: docs/FASTAPI_SETUP.md
-  - Git Workflow: docs/GIT_WORKFLOW.md
-  - Project Modules: README.md
