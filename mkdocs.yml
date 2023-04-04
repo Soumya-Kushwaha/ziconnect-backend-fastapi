@@ -15,4 +15,4 @@ theme:
   - navigation.tabs.sticky
 
 nav:
-  - License: LICENSE.md
+  - License: docs/LICENSE.md
