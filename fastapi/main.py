@@ -1,21 +1,20 @@
 import os
 import json
-import worker 
+import worker
 import requests
 
 from worker import app as celery_app
 from datetime import datetime
 from pydantic import BaseModel
 from time import mktime
-from typing import Union
+from typing import Union, Dict
 
 from celery import Celery, uuid
 from celery.result import AsyncResult
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Query, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -50,31 +49,30 @@ class FilePrediction(BaseModel):
     file: Union[bytes, None] = None
 
 
-urlFlowerApi = 'http://0.0.0.0:5556/api'
-target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
+FLOWER_API_URL = 'http://0.0.0.0:5556/api'
+TARGET_DIRPATH = '/var/lib/docker/volumes/fastapi-storage/_data/'
 
-origins = ["*"]
 app = FastAPI(openapi_tags=tags_metadata)
 app.add_middleware(
-                    CORSMiddleware,
-                    allow_origins=origins,
-                    allow_credentials=True,
-                    allow_methods=["*"],
-                    allow_headers=["*"],
-                  )
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.mount("/static", StaticFiles(directory="/"), name="static")
 
-templates = Jinja2Templates(directory="html")   
+templates = Jinja2Templates(directory="html")
 
 @app.get("/health", tags=["healthCheck"], status_code=200)
 def service_health() -> JSONResponse:
     try:
-        """Return service health"""        
+        """Return service health"""
         return JSONResponse(content='ok', status_code=200)
     except Exception as ex:
         return JSONResponse(content=ex, status_code=400)
-    
+
 
 @app.post("/task/prediction", tags=["prediction"], status_code=200)
 def run_task(locality_file: UploadFile = File(...),
@@ -86,12 +84,12 @@ def run_task(locality_file: UploadFile = File(...),
 
         # Import Files (Locality / School)
         locality_filename = f'{task_id}_{locality_file.filename}'
-        locality_local_filepath = os.path.join(target_dirpath, locality_filename)
+        locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_file.file.read())
 
         school_filename = f'{task_id}_{school_file.filename}'
-        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_file.file.read())
 
@@ -105,21 +103,22 @@ def run_task(locality_file: UploadFile = File(...),
 
 @app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
 def run_socialimpact_task(locality_history: UploadFile = File(...),
-                        school_history: UploadFile = File(...)
-                        ) -> JSONResponse: # pragma: no cover
+                          school_history: UploadFile = File(...),
+                          homogenize_columns: list[str] = None
+                         ) -> JSONResponse: # pragma: no cover
     try:
-        task_name = "uploadSocialImpactFile_task" 
-        task_id = uuid() 
+        task_name = "uploadSocialImpactFile_task"
+        task_id = uuid()
 
-        # Import Files (Locality)
+        # Import Files (Locality / School)
         locality_filename = f'{task_id}_{locality_history.filename}'
-        locality_local_filepath = os.path.join(target_dirpath, locality_filename)        
+        locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_history.file.read())
 
         # Import Files (School)
         school_filename = f'{task_id}_{school_history.filename}'
-        school_local_filepath = os.path.join(target_dirpath, school_filename)
+        school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_history.file.read())
 
@@ -130,33 +129,52 @@ def run_socialimpact_task(locality_history: UploadFile = File(...),
     except Exception as ex:
         return JSONResponse(content=ex, status_code=500)
 
+def parse_failure_exception(exception: str) -> Dict:
+    """Parse the exception message and return its content"""
+    raw_exception = exception
+    try:
+        exception = exception.split('(', 1)[1].rsplit(')', 1)[0]
+        exception = exception.replace("'", '"')
+        exception = exception.replace("None", 'null')
+        exception = exception.replace("True", 'true')
+        exception = exception.replace("False", 'false')
+        return json.loads(exception)
+    except Exception as ex:
+        return {
+            'exc_type': type(ex).__name__,
+            'exc_message': raw_exception
+        }
+
 @app.get("/task/result/{task_id}", tags=["result"])
 def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
-        request_url = f'{urlFlowerApi}/task/result/{task_id}'
-        response = requests.get(request_url).json()    
-        traskResult = None
-    
-        if (response['state'] in ['FAILURE','SUCCESS']):
-            traskResult = response['result']
+        request_url = f'{FLOWER_API_URL}/task/result/{task_id}'
+        response = requests.get(request_url).json()
+        task_result = None
+
+        task_state = response['state']
+        if task_state == 'SUCCESS':
+            task_result = response['result']
+        elif task_state == 'FAILURE':
+            task_result = parse_failure_exception(response['result'])
 
         response = {
-            "taskResult" : traskResult 
+            "taskResult" : task_result
         }
         return JSONResponse(content=response, status_code=200)
 
     except HTTPException as ex:
         return JSONResponse(content=ex, status_code=500 )
-    
+
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
-        request_url = f'{urlFlowerApi}/task/info/{task_id}'
+        request_url = f'{FLOWER_API_URL}/task/info/{task_id}'
 
         response = requests.get(request_url)
         if response.text == '':
             return JSONResponse(content="TaskID not found", status_code=404)
-        
+
         parsed_json = json.loads(response.text)
         def get_date_field(field: str) -> str:
             if field not in parsed_json:
@@ -170,37 +188,38 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
         task_timestamp = get_date_field('timestamp')
         task_succeeded = None
         task_failed = None
+        task_exception = None
 
         task_state = parsed_json['state']
         if task_state not in ['STARTED', 'PENDING','RECEIVED','SUCCESS']:
             task_failed = get_date_field('failed')
-        
-        if task_state in ['FAILURE']:
-            task_succeeded = None
-            task_started = get_date_field('started') 
-        
-        if task_state in ['SUCCESS']:
-            task_succeeded = get_date_field('succeeded')
-        
-        if task_state in ['RECEIVED']:
-            task_started = None
 
-        if task_state in ['STARTED', 'PENDING','SUCCESS']:           
-            task_started = get_date_field('started') 
+        if task_state == 'RECEIVED':
+            task_started = None
+        if task_state == 'FAILURE':
+            task_succeeded = None
+            task_started = get_date_field('started')
+            task_exception = parse_failure_exception(parsed_json['exception'])
+            task_exception['exc_message'] = str(task_exception['exc_message'])[:1000]
+        if task_state == 'SUCCESS':
+            task_succeeded = get_date_field('succeeded')
+
+        if task_state in ['STARTED', 'PENDING', 'SUCCESS']:
+            task_started = get_date_field('started')
             task_failed = None
-            
+
         response = {
             "taskID" : parsed_json['uuid'],
             "taskName" : parsed_json['name'],
             "taskState" : parsed_json['state'],
             "taskTimestamp" : task_timestamp,
-            "taskStartedDate" : task_started,     
+            "taskStartedDate" : task_started,
             "taskReceivedDate" : task_received,
             "taskFailedDate" : task_failed,
             "taskSucceededDate" : task_succeeded,
             "taskResult" : parsed_json['result'],
             "taskRejected" : parsed_json['rejected'],
-            "taskException" : parsed_json['exception']
+            "taskException" : task_exception
         }
         return JSONResponse(content=response, status_code=200)
 
@@ -211,7 +230,7 @@ class EncoderObj(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return {
-                '__type__': '__datetime__', 
+                '__type__': '__datetime__',
                 'epoch': int(mktime(obj.timetuple()))
             }
         else:
@@ -223,7 +242,7 @@ def decoderObj(obj):
             return datetime.fromtimestamp(obj['epoch'])
     return obj
 
-# Encoder function      
+# Encoder function
 def dumpEncode(obj):
     return json.dumps(obj, cls=EncoderObj)
 

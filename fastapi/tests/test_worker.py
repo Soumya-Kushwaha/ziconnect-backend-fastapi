@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from worker import uploadFile_task,uploadSocialImpactFile_task
+from worker import uploadFile_task, uploadSocialImpactFile_task
 
 import unittest
 
@@ -21,12 +21,13 @@ def test_uploadSocialImpactFile_task(return_uploadSocialImpactFile_mock):
 
 
 class TestAddTask(unittest.TestCase):
-  def setUp(self):
-    try:
-        localityFile = '/var/lib/docker/volumes/fastapi-storage/_data/locality.csv'
-        schoolFile = '/var/lib/docker/volumes/fastapi-storage/_data/school.csv'
 
-        self.task = uploadFile_task.apply_async(localityFile,schoolFile)
-        assert self.results == self.task.get()
-    except AssertionError as msg:
-        print(msg)
+    def setUp(self):
+        try:
+            localityFile = '/var/lib/docker/volumes/fastapi-storage/_data/locality.csv'
+            schoolFile = '/var/lib/docker/volumes/fastapi-storage/_data/school.csv'
+
+            self.task = uploadFile_task.apply_async(localityFile,schoolFile)
+            assert self.results == self.task.get()
+        except AssertionError as msg:
+            print(msg)
