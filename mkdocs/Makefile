@@ -10,7 +10,6 @@ h help:
 
 
 install:
-	pip install mkdocs-include-markdown-plugin
 	pip install pip --upgrade
 	pip install -r requirements.txt
 

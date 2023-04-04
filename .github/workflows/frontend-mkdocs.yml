@@ -22,12 +22,15 @@ jobs:
         with:
           python-version: '3.10'
       
+      - name: Install markdown-plugin
+        run: pip install mkdocs-include-markdown-plugin
+
       - name: Install dependencies
         run: pip install -r mkdocs/requirements.txt
 
       - name: Install mkdocs material
         run: pip install mkdocs-material
-
+      
       - name: Install dependencies
         working-directory: mkdocs
         run: make install
