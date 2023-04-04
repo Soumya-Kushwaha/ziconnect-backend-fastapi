@@ -32,9 +32,9 @@ jobs:
         run: pip install mkdocs-material
       
       - name: Create mkdocs 
-        working-directory: .
+        #working-directory: .
         run: make install
 
       - name: Build and deploy to GitHub Pages
-        working-directory: .
+        #working-directory: .
         run: make deploy

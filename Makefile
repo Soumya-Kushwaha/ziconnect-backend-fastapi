@@ -1,4 +1,4 @@
-.PHONY: docs
+#.PHONY: docs
 
 default: install
 
