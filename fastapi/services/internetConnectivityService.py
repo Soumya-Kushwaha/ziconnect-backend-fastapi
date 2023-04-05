@@ -20,31 +20,7 @@ import copy
 import pandas as pd
 import pandera as pa
 
-
-# Reference: https://stackoverflow.com/questions/55562696/how-to-replace-missing-values-with-group-mode-in-pandas
-def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str):
-    """
-    Calculate a column mode, by group, ignoring null values.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame over which to calcualate the mode.
-    key_columns : list of str
-        Columns to groupby for calculation of mode.
-    target_column : str
-        Column for which to calculate the mode.
-
-    Returns
-    -------
-    pandas.DataFrame
-        One row for the mode of value_col per key_cols group. If ties,
-        returns the one which is sorted first.
-    """
-    return (df.groupby(key_columns + [target_column]).size()
-              .to_frame('counts').reset_index()
-              .sort_values('counts', ascending=False)
-              .drop_duplicates(subset=key_columns)).drop(columns='counts')
+from utils import fast_mode
 
 
 class ProcessedTable(object):
