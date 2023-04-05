@@ -25,8 +25,8 @@ tags_metadata = [
                        + " send them to the prediction model training the model",
     },
     {
-        "name": "socialimpact",
-        "description": "Post the dataset for social impact analysis and" \
+        "name": "employability-impact",
+        "description": "Post the dataset for employability impact analysis and" \
                        + " send them to the prediction model training the model and present the results",
     },
     {
@@ -101,28 +101,28 @@ def run_task(locality_file: UploadFile = File(...),
         return JSONResponse(content=ex, status_code=500)
 
 
-@app.post("/task/socialimpact", tags=["socialimpact"], status_code=200)
-def run_socialimpact_task(locality_history: UploadFile = File(...),
-                          school_history: UploadFile = File(...),
-                          homogenize_columns: list[str] = None
-                         ) -> JSONResponse: # pragma: no cover
+@app.post("/task/employability-impact", tags=["employability-impact"], status_code=200)
+def run_employability_impact_task(employability_history_file: UploadFile = File(...),
+                                  school_history_file: UploadFile = File(...),
+                                  homogenize_columns: list[str] = None
+                                 ) -> JSONResponse: # pragma: no cover
     try:
-        task_name = "uploadSocialImpactFile_task"
+        task_name = "uploadEmployabilityImpactFile_task"
         task_id = uuid()
 
         # Import Files (Locality / School)
-        locality_filename = f'{task_id}_{locality_history.filename}'
-        locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
-        with open(locality_local_filepath, mode='wb+') as f:
-            f.write(locality_history.file.read())
+        employability_filename = f'{task_id}_{employability_history_file.filename}'
+        employability_local_filepath = os.path.join(TARGET_DIRPATH, employability_filename)
+        with open(employability_local_filepath, mode='wb+') as f:
+            f.write(employability_history_file.file.read())
 
         # Import Files (School)
-        school_filename = f'{task_id}_{school_history.filename}'
+        school_filename = f'{task_id}_{school_history_file.filename}'
         school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
-            f.write(school_history.file.read())
+            f.write(school_history_file.file.read())
 
-        args = [locality_local_filepath, school_local_filepath]
+        args = [employability_local_filepath, school_local_filepath]
         result = celery_app.send_task(task_name, args=args, kwargs=None)
         return JSONResponse({"task_id": result.id})
 
