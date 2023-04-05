@@ -1,15 +1,15 @@
-from typing import Optional, List, Tuple, Any
+from typing import Optional, Union, List, Tuple, Set
 from ast import literal_eval
 from collections import Counter
-from utils import fast_mode, convert_to_list, parse_int, parse_boolean
+from services.utils import fast_mode, convert_to_list, parse_int, parse_boolean
 
 from scipy.stats import ks_2samp
-import re
 
 import copy
 import numpy as np
 import pandas as pd
 import pandera as pa
+import re
 
 pd.set_option('display.float_format', '{:.3f}'.format)
 
@@ -27,8 +27,6 @@ class ProcessedTable(object):
         Table after processing
     failure_cases : pandas.DataFrame
         Failure cases
-    failure_rows : pandas.DataFrame
-        Failure rows
     """
 
     is_ok: bool
@@ -42,13 +40,11 @@ class ProcessedTable(object):
                  initial_df: pd.DataFrame,
                  final_df: pd.DataFrame,
                  failure_cases: pd.DataFrame,
-                 failure_rows: pd.DataFrame
                 ) -> None:
         self.is_ok = is_ok
         self.initial_df = initial_df
         self.final_df = final_df
         self.failure_cases = failure_cases
-        self.failure_rows = failure_rows
 
 
 class SchoolHistoryTableProcessor:
@@ -63,24 +59,33 @@ class SchoolHistoryTableProcessor:
 
     schema: pa.DataFrameSchema
 
-    def __init__(self) -> None:
+    def __init__(self, municipality_codes: Union[Set, List]) -> None:        
+        self.municipality_codes = None
+
+        isin_municipality_fn = None
+        if isinstance(municipality_codes, (set, list)) and len(municipality_codes) > 0:
+            self.municipality_codes = municipality_codes
+            isin_municipality_fn = pa.Check.isin(municipality_codes,
+                                                 error='is_valid_municipality_code')
+
         is_list_fn = pa.Check(
             lambda x: isinstance(x, (list, tuple, set)),
             error='is_list_type', element_wise=True
         )
         is_same_length_fn = pa.Check(
-            lambda row:  len(row['connectivity_year']) == len(row['connectivity_rate']),
+            lambda row:  len(row['years']) == len(row['internet_availability']),
             error='is_same_length', element_wise=True
         )
 
         self.schema = pa.DataFrameSchema({
-            'school_code':       pa.Column(str, unique=True, nullable=False),
-            'school_name':       pa.Column(str, unique=False, nullable=False),
-            'municipality_code': pa.Column(str, unique=False, nullable=False),
-            'connectivity_year': pa.Column(object, unique=False, nullable=False,
-                                           checks=is_list_fn),
-            'connectivity_rate': pa.Column(object, unique=False, nullable=False,
-                                           checks=is_list_fn),
+            'school_code':           pa.Column(str, unique=True, nullable=False),
+            'school_name':           pa.Column(str, unique=False, nullable=False),
+            'municipality_code':     pa.Column(str, unique=False, nullable=False,
+                                               checks=isin_municipality_fn),
+            'years':                 pa.Column(object, unique=False, nullable=False,
+                                               checks=is_list_fn),
+            'internet_availability': pa.Column(object, unique=False, nullable=False,
+                                               checks=is_list_fn),
         },  checks=is_same_length_fn, coerce=True, strict=True)
 
 
@@ -91,8 +96,7 @@ class SchoolHistoryTableProcessor:
         ----------
         initial_df : pandas.DataFrame
             Table to process. It must have the following columns:
-            country_code, country_name, state_code, state_name,
-            municipality_code, municipality_code.
+            school_code, school_name, municipality_code, years, internet_availability
 
         Returns
         -------
@@ -108,12 +112,9 @@ class SchoolHistoryTableProcessor:
             df = self.__convert_dtypes(df)
             is_ok = True
             failure_cases = None
-            failure_rows = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
             is_ok = False
             failure_cases = err.failure_cases
-            error_indices = err.failure_cases['index'].unique()
-            failure_rows = err.data.iloc[error_indices]
             err.failure_cases['index'] += 2 # Add 2 to skip header and 0-indexs
 
         return ProcessedTable(
@@ -121,27 +122,25 @@ class SchoolHistoryTableProcessor:
             initial_df    = initial_df,
             final_df      = df,
             failure_cases = failure_cases,
-            failure_rows  = failure_rows,
         )
 
 
     def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
-        columns_required = {'connectivity_year', 'connectivity_rate'}
+        columns_required = {'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
             return df
 
-        df['connectivity_year'] = df['connectivity_year']\
+        df['years'] = df['years']\
             .apply(lambda x: convert_to_list(x, parse_int))
-        df['connectivity_rate'] = df['connectivity_rate']\
+        df['internet_availability'] = df['internet_availability']\
             .apply(lambda x: convert_to_list(x, parse_boolean))
         return df
 
 
     def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
-        columns_required = {'municipality_code', 'connectivity_year',
-                            'connectivity_rate'}
+        columns_required = {'municipality_code', 'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
             return df
 
@@ -154,14 +153,18 @@ class SchoolHistoryTableProcessor:
         # All localities must be municipalities and have connectivity data
         df = df[~df['school_code'].isna()]
         df = df[~df['municipality_code'].isna()]
-        df = df[~df['connectivity_year'].isna()]
-        df = df[~df['connectivity_rate'].isna()]
-        df = df[~df['connectivity_rate'].apply(lambda x: None in x)]
+        df = df[~df['years'].isna()]
+        df = df[~df['internet_availability'].isna()]
+        df = df[~df['internet_availability'].apply(lambda x: None in x)]
 
         # Must have data for all years
-        connectivity_years = df['connectivity_year'].apply(set).values
-        connectivity_years = set.union(*connectivity_years)
-        df = df[df['connectivity_year'].apply(lambda x: set(x) == connectivity_years)]
+        years = df['years'].apply(set).values
+        years = set.union(*years)
+        df = df[df['years'].apply(lambda x: set(x) == years)]
+
+        # Get only valid cities
+        if self.municipality_codes is not None:
+            df = df[df['municipality_code'].isin(self.municipality_codes)]
 
         # Remove redundant data
         df = df.drop_duplicates(subset=['school_code'])
@@ -171,11 +174,11 @@ class SchoolHistoryTableProcessor:
 
     def __convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype({
-            'school_code':       'string',
-            'school_name':       'string',
-            'municipality_code': 'string',
-            'connectivity_year': 'object',
-            'connectivity_rate': 'object'
+            'school_code':           'string',
+            'school_name':           'string',
+            'municipality_code':     'string',
+            'years':                 'object',
+            'internet_availability': 'object'
         })
 
 
@@ -197,7 +200,7 @@ class EmployabilityHistoryTableProcessor:
             error='is_list_type', element_wise=True
         )
         is_same_length_fn = pa.Check(
-            lambda row:  len(row['employability_year']) == len(row['employability_rate']),
+            lambda row:  len(row['years']) == len(row['employability_rate']),
             error='is_same_length', element_wise=True
         )
 
@@ -210,7 +213,7 @@ class EmployabilityHistoryTableProcessor:
             'municipality_name':  pa.Column(str, unique=False, nullable=False),
             'hdi':                pa.Column(float, unique=False, nullable=False),
             'population_size':    pa.Column(float, unique=False, nullable=False),
-            'employability_year': pa.Column(object, unique=False, nullable=False,
+            'years':              pa.Column(object, unique=False, nullable=False,
                                             checks=is_list_fn),
             'employability_rate': pa.Column(object, unique=False, nullable=False,
                                             checks=is_list_fn),
@@ -225,7 +228,8 @@ class EmployabilityHistoryTableProcessor:
         initial_df : pandas.DataFrame
             Table to process. It must have the following columns:
             country_code, country_name, state_code, state_name,
-            municipality_code, municipality_code.
+            municipality_code, municipality_name, hdi, population_size,
+            years, employability_rate
 
         Returns
         -------
@@ -242,12 +246,9 @@ class EmployabilityHistoryTableProcessor:
             df = self.__convert_dtypes(df)
             is_ok = True
             failure_cases = None
-            failure_rows = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
             is_ok = False
             failure_cases = err.failure_cases
-            error_indices = err.failure_cases['index'].unique()
-            failure_rows = err.data.iloc[error_indices]
             err.failure_cases['index'] += 2 # Add 2 to skip header and 0-indexs
 
         return ProcessedTable(
@@ -255,17 +256,16 @@ class EmployabilityHistoryTableProcessor:
             initial_df    = initial_df,
             final_df      = df,
             failure_cases = failure_cases,
-            failure_rows  = failure_rows,
         )
 
 
     def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
-        columns_required = {'employability_year', 'employability_rate'}
+        columns_required = {'years', 'employability_rate'}
         if not columns_required.issubset(set(df.columns)):
             return df
 
-        df['employability_year'] = df['employability_year']\
+        df['years'] = df['years']\
             .apply(lambda x: convert_to_list(x, parse_int))
         df['employability_rate'] = df['employability_rate']\
             .apply(lambda x: convert_to_list(x, parse_int))
@@ -275,7 +275,7 @@ class EmployabilityHistoryTableProcessor:
     def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'municipality_code', 'hdi', 'population_size',
-                            'employability_year', 'employability_rate'}
+                            'years', 'employability_rate'}
         if not columns_required.issubset(set(df.columns)):
             return df
 
@@ -289,14 +289,14 @@ class EmployabilityHistoryTableProcessor:
         df = df[~df['municipality_code'].isna()]
         df = df[~df['hdi'].isna()]
         df = df[~df['population_size'].isna()]
-        df = df[~df['employability_year'].isna()]
+        df = df[~df['years'].isna()]
         df = df[~df['employability_rate'].isna()]
         df = df[~df['employability_rate'].apply(lambda x: None in x)]
 
         # Must have data for all years
-        employability_years = df['employability_year'].apply(set).values
-        employability_years = set.union(*employability_years)
-        df = df[df['employability_year'].apply(lambda x: set(x) == employability_years)]
+        years = df['years'].apply(set).values
+        years = set.union(*years)
+        df = df[df['years'].apply(lambda x: set(x) == years)]
 
         # Remove redundant data
         df = df.drop_duplicates(subset=['municipality_code'])
@@ -335,7 +335,7 @@ class EmployabilityHistoryTableProcessor:
             'municipality_name':  'string',
             'hdi':                'Float32',
             'population_size':    'Int32',
-            'employability_year': 'object',
+            'years':              'object',
             'employability_rate': 'object'
         })
 
@@ -353,7 +353,7 @@ class EmployabilityImpactDataLoader:
 
         # After an extensive experimentation, these were the variables choosen
         self.school_history_columns = [
-            'school_code', 'municipality_code', 'internet_year',
+            'school_code', 'municipality_code', 'years',
             'internet_availability'
         ]
 
@@ -372,7 +372,7 @@ class EmployabilityImpactDataLoader:
         df = copy.deepcopy(self.school_history_df)
 
         df['internet_availability_dict'] = self.school_history_df.apply(
-            lambda x: dict(zip(x['connectivity_year'], x['connectivity_rate'])),
+            lambda x: dict(zip(x['years'], x['internet_availability'])),
             axis=1
         )
 
@@ -413,6 +413,7 @@ class EmployabilityImpactDataLoader:
 
         df = pd.merge(self.employability_history_df, connecivity_history_df,
                       on=self.merge_key, validate='one_to_one')
+        df.rename(columns={'years': 'employability_year'}, inplace=True)
 
         # Guarantee that the columns are in the correct format
         df['connectivity_year'] = df['connectivity_year'].apply(np.array)
@@ -531,7 +532,7 @@ class Setting:
         return p_value_ks_greater, p_value_ks_less
 
 
-class TemporalAnalisys:
+class EmployabilityImpactTemporalAnalisys:
 
     settings: List[Setting]
     df: pd.DataFrame
@@ -602,8 +603,6 @@ class TemporalAnalisys:
         employability_cols = [col for col in self.df.columns
                               if re.search(r'employability_\d{4}_\d{4}', col)]
 
-        i = 0
-
         # Testing all combinations of range periods
         for con_col in connectivity_cols:
             for emp_col in employability_cols:
@@ -616,9 +615,6 @@ class TemporalAnalisys:
                     self.settings.append(Setting(self.df, con_col, emp_col,
                                                  filter_A, filter_B,
                                                  significance_test=True))
-                # i+=1
-                # if i >= 20:
-                #     return
 
 
     def get_summary(self) -> pd.DataFrame:
@@ -641,25 +637,24 @@ if __name__ == '__main__':
 
     # Files
     employability_history_df = pd.read_csv(employability_history_filepath, sep=',',
-                                           encoding='utf-8')
+                                           encoding='utf-8', dtype=object)
     school_history_df = pd.read_csv(school_history_filepath, sep=',',
                                     encoding='utf-8', dtype=object)
 
-    # Temp solution
-    employability_history_df.rename(columns={
-        'years': 'employability_year',
-        'employability_rate': 'employability_rate'
-    }, inplace=True)
-
-    school_history_df.rename(columns={
-        'year': 'connectivity_year',
-        'internet_availability': 'connectivity_rate'
-    }, inplace=True)
-
+    # Process localities table
     employability_processor = EmployabilityHistoryTableProcessor()
     processed_employability = employability_processor.process(employability_history_df)
 
-    school_processor = SchoolHistoryTableProcessor()
+    # Process schools table
+    processed_employability_df = processed_employability.final_df
+
+    municipality_codes = None
+    if (processed_employability_df is not None
+        and 'municipality_code' in processed_employability_df.columns):
+        municipality_codes = processed_employability_df['municipality_code']
+        municipality_codes = set(municipality_codes.values)
+
+    school_processor = SchoolHistoryTableProcessor(municipality_codes)
     processed_school = school_processor.process(school_history_df)
 
     import json
@@ -714,12 +709,23 @@ if __name__ == '__main__':
     impact_dl.dataset.query(states_query, inplace=True)
     print(impact_dl.dataset.shape)
 
-    temporal_analisys = TemporalAnalisys(impact_dl.dataset)
+    temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
     temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
 
     setting_df = temporal_analisys.get_summary()
     setting_df.query('n_cities_A>=200 and n_cities_B>=200', inplace=True)
     setting_df.sort_values(by=['employability_ratio_A_B'], ascending=False, inplace=True)
-    print(setting_df.head(15))
     with open('temporal_analisys.csv', 'w') as f:
         f.write(setting_df.to_csv(index=False))
+
+    query = '(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'
+    query += ' or '
+    query += '(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'
+    setting_df = setting_df.query(query)
+
+    employability_mean_A = setting_df.employability_mean_A
+    employability_mean_B = setting_df.employability_mean_B
+    num_settings = len(setting_df)
+    improved_count = (employability_mean_A > employability_mean_B).sum()
+    print(improved_count, num_settings)
+    print(np.round((improved_count * 100) / num_settings, 4))

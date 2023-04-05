@@ -52,7 +52,7 @@ def test_postTaskPrediction():
     assert response.status_code != 200
 
 
-def test_postTaskSocialImpact():
+def test_postTaskEmployabilityImpact():
 
     df = pd.DataFrame({
         'state_code': ['CA', 'CA', 'NY', 'NY', 'NY'],
@@ -65,19 +65,19 @@ def test_postTaskSocialImpact():
         'internet_availability_prediction': ['Yes', 'No', 'Yes', 'No', 'No'],
     })
 
-    task_name = "uploadSocialImpactFile_task"
+    task_name = "uploadEmployabilityImpactFile_task"
     assert task_name is not None
 
     target_dirpath = '/var/lib/docker/volumes/fastapi-storage/_data/'
     assert target_dirpath is not None
 
     data_modeling = {
-        "localityHistory_file": df,
-        "schoolHistory_file": df,
+        "employability_history_file": df,
+        "school_history_file": df,
         "homogenize_columns": "state_code,hdi,population_size"
     }
     header = { 'Content-Type': 'application/x-www-form-urlencoded'}
-    response = client.post("/task/socialimpact", params=data_modeling, headers=header)
+    response = client.post("/task/employability-impact", params=data_modeling, headers=header)
 
     assert response.status_code != 200
 
