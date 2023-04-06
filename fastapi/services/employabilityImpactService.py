@@ -441,7 +441,8 @@ class Setting:
 
 
     def __init__(self, df: pd.DataFrame, connectivity_col: str, employability_col: str,
-                 filter_A: str, filter_B: str, significance_test: bool = False) -> None:
+                 filter_A: str, filter_B: str, min_n_cities_test: int = 100,
+                 significance_test: bool = False) -> None:
 
         self.connectivity_col = connectivity_col
         self.employability_col = employability_col
@@ -451,7 +452,8 @@ class Setting:
         A, B = self.get_sets(df)
         self.__set_statistics(A, B, employability_col)
 
-        if significance_test and self.n_cities_A >= 200 and self.n_cities_B >= 200:
+        if (significance_test and self.n_cities_A >= min_n_cities_test
+            and self.n_cities_B >= min_n_cities_test):
             self.p_value_ks_greater, self.p_value_ks_less = \
                 self.__get_significance_test(A, B, employability_col)
         else:
@@ -557,7 +559,7 @@ class EmployabilityImpactTemporalAnalisys:
         end_indices = np.where(years == end_year)[0]
         if start_indices.size == 0 or end_indices.size == 0:
             return np.nan
-    
+
         start_idx = start_indices[0]
         end_idx = end_indices[0]
         if np.isclose(rates[start_idx], 0):
@@ -581,7 +583,7 @@ class EmployabilityImpactTemporalAnalisys:
                     args=(year_column, rate_column, start_year, end_year))
 
 
-    def __get_time(self, col: str) -> Tuple[int, int]:
+    def parse_interval_column(self, col: str) -> Tuple[int, int]:
         temp = col.split('_')
         end_year = int(temp[-1])
         start_year = int(temp[-2])
@@ -606,15 +608,30 @@ class EmployabilityImpactTemporalAnalisys:
         # Testing all combinations of range periods
         for con_col in connectivity_cols:
             for emp_col in employability_cols:
-                if not self.__is_valid_range(self.__get_time(con_col),
-                                             self.__get_time(emp_col)):
+                connectivity_range = self.parse_interval_column(con_col)
+                employability_range = self.parse_interval_column(emp_col)
+                if not self.__is_valid_range(connectivity_range, employability_range):
                     continue
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
                     self.settings.append(Setting(self.df, con_col, emp_col,
                                                  filter_A, filter_B,
+                                                 min_n_cities_test=100,
                                                  significance_test=True))
+
+
+    def get_best_setting(self, significance_test: bool=True) -> Setting:
+        best_setting = None
+        best_ratio = 0
+        for setting in self.settings:
+            if significance_test and (np.isnan(setting.p_value_ks_greater)
+                or setting.p_value_ks_greater > 0.05):
+                continue
+            if setting.employability_ratio_A_B > best_ratio:
+                best_setting = setting
+                best_ratio = setting.employability_ratio_A_B
+        return best_setting
 
 
     def get_summary(self) -> pd.DataFrame:
@@ -693,15 +710,16 @@ if __name__ == '__main__':
     impact_dl.setup()
 
     valid_states = [
-        "Ceará",
-        "Paraíba",
-        "Piauí",
-        "Pará" ,
         "Alagoas",
-        "Rio Grande do Norte",
-        "Pernambuco",
-        "Sergipe",
+        "Ceará",
+        "Bahia",
         "Maranhão",
+        "Pará" ,
+        "Paraíba",
+        "Pernambuco",
+        "Piauí",
+        "Rio Grande do Norte",
+        "Sergipe",
     ]
 
     print(impact_dl.dataset.shape)
