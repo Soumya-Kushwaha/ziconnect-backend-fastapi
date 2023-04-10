@@ -22,7 +22,8 @@ from services.employabilityImpactService import (
     SchoolHistoryTableProcessor,
     EmployabilityHistoryTableProcessor,
     EmployabilityImpactDataLoader,
-    EmployabilityImpactTemporalAnalisys
+    EmployabilityImpactTemporalAnalisys,
+    EmployabilityImpactOutputter
 )
 
 class TableSchemaError(Exception):
@@ -176,65 +177,13 @@ def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str
 
         temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
         temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
-        setting_df = temporal_analisys.get_summary()
-
-        # All settings
-
-        greater_count = len(setting_df.query('(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'))
-        less_count = len(setting_df.query('(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'))
-        not_computed_count = len(setting_df[
-            (setting_df['pval_ks_less'].isna()) &
-            (setting_df['pval_ks_greater'].isna())
-        ])
-        equal_count = len(setting_df) - greater_count - less_count - not_computed_count
-
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
-        scenario_distribution = {
-            'employability_A': employability_mean_A.round(4).tolist(),
-            'employability_B': employability_mean_B.round(4).tolist(),
-            'evaluation': {
-                'greater': greater_count,
-                'equal': equal_count,
-                'less': less_count,
-                'not_computed': not_computed_count,
-            }
-        }
-
-        # Best setting
-
+        setting_df = temporal_analisys.get_result_summary()
         best_setting = temporal_analisys.get_best_setting()
-        best_setting_stats = None
-        if best_setting is not None:
-            A, B = best_setting.get_sets(temporal_analisys.df)
 
-            def get_set_stats(set_df: pd.DataFrame) -> Dict[str, Any]:
-                connectivity_values = 100 * (set_df[best_setting.connectivity_col] - 1)
-                employability_values = 100 * (set_df[best_setting.employability_col] - 1)
-                return {
-                    'num_municipalities': len(set_df),
-                    'municipality_name': set_df['municipality_name'].tolist(),
-                    'state_name': set_df['state_name'].tolist(),
-                    'hdi': set_df['hdi'].tolist(),
-                    'population_size': set_df['population_size'].tolist(),
-                    'connectivity': connectivity_values.round(4).tolist(),
-                    'employability': employability_values.round(4).tolist(),
-                }
-
-            connectivity_range = temporal_analisys.parse_interval_column(best_setting.connectivity_col)
-            employability_range = temporal_analisys.parse_interval_column(best_setting.employability_col)
-            best_setting_stats = {
-                'connectivity_range': connectivity_range,
-                'employability_range': employability_range,
-                'A': get_set_stats(A),
-                'B': get_set_stats(B),
-            }
-
-        response = {
-            'scenario_distribution': scenario_distribution,
-            'best_scenario': best_setting_stats,
-        }
-        return response
+        outputter = EmployabilityImpactOutputter()
+        output = outputter.get_output(temporal_analisys.df, setting_df,
+                                      best_setting, significance_threshold=0.05)
+        return output
 
     except Exception as ex:
         raise RuntimeError({
