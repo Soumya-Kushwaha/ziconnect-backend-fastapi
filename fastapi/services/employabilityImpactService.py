@@ -103,12 +103,12 @@ class SchoolHistoryTableProcessor:
             Processed table information
         """
         df = copy.deepcopy(initial_df)
-        df = self.__preprocess(df)
-        df = self.__clean_data(df)
+        df = self._preprocess(df)
+        df = self._clean_data(df)
 
         try:
             self.schema.validate(df, lazy=True)
-            df = self.__convert_dtypes(df)
+            df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
@@ -124,7 +124,7 @@ class SchoolHistoryTableProcessor:
         )
 
 
-    def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
@@ -137,7 +137,7 @@ class SchoolHistoryTableProcessor:
         return df
 
 
-    def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'municipality_code', 'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
@@ -158,7 +158,7 @@ class SchoolHistoryTableProcessor:
 
         # Must have data for all years
         years = df['years'].apply(set).values
-        years = set.union(*years)
+        years = set.union(*years) - {None, pd.NA, ''}
         df = df[df['years'].apply(lambda x: set(x) == years)]
 
         # Get only valid cities
@@ -171,7 +171,7 @@ class SchoolHistoryTableProcessor:
         return df
 
 
-    def __convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype({
             'school_code':           'string',
             'school_name':           'string',
@@ -236,13 +236,13 @@ class EmployabilityHistoryTableProcessor:
             Processed table information
         """
         df = copy.deepcopy(initial_df)
-        df = self.__preprocess(df)
-        df = self.__clean_data(df)
-        df = self.__standardize_values(df)
+        df = self._preprocess(df)
+        df = self._clean_data(df)
+        df = self._standardize_values(df)
 
         try:
             self.schema.validate(df, lazy=True)
-            df = self.__convert_dtypes(df)
+            df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
@@ -258,7 +258,7 @@ class EmployabilityHistoryTableProcessor:
         )
 
 
-    def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'years', 'employability_rate'}
         if not columns_required.issubset(set(df.columns)):
@@ -271,7 +271,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'municipality_code', 'hdi', 'population_size',
                             'years', 'employability_rate'}
@@ -294,7 +294,7 @@ class EmployabilityHistoryTableProcessor:
 
         # Must have data for all years
         years = df['years'].apply(set).values
-        years = set.union(*years)
+        years = set.union(*years) - {None, pd.NA, ''}
         df = df[df['years'].apply(lambda x: set(x) == years)]
 
         # Remove redundant data
@@ -303,7 +303,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __standardize_values(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _standardize_values(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'country_code', 'country_name',
                             'state_code', 'state_name'}
@@ -324,7 +324,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype({
             'country_code':       'string',
             'country_name':       'string',
@@ -462,14 +462,14 @@ class Setting:
         self.filter_B = filter_B
 
         A, B = self.get_sets(df)
-        self.__set_statistics(A, B, employability_col)
+        self._set_statistics(A, B, employability_col)
 
         self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
         if (significance_test
             and self.n_cities_A >= min_n_cities_test
             and self.n_cities_B >= min_n_cities_test):
             self.p_value_ks_greater, self.p_value_ks_less = \
-                self.__get_significance_test(A, B, employability_col)
+                self._get_significance_test(A, B, employability_col)
 
 
     def get_infos(self):
@@ -517,8 +517,8 @@ class Setting:
         return A, B
 
 
-    def __set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
-                         employability_col: str) -> None:
+    def _set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
+                        employability_col: str) -> None:
         self.n_cities_A = A.shape[0]
         self.n_cities_B = B.shape[0]
         self.employability_mean_A = A[employability_col].mean()
@@ -536,7 +536,7 @@ class Setting:
         self.HDI_std_B = B['hdi'].std()
 
 
-    def __get_significance_test(self, A, B, employability_col):
+    def _get_significance_test(self, A, B, employability_col):
         #test F_B > F_A -> A > B
         _, p_value_ks_g = ks_2samp(B[employability_col],
                                    A[employability_col],
@@ -561,14 +561,14 @@ class EmployabilityImpactTemporalAnalisys:
     def __init__(self, df: pd.DataFrame) -> None:
         self.settings = []
         self.df = df.copy()
-        self.__create_temporal_features('connectivity_year', 'connectivity_rate',
+        self._create_temporal_features('connectivity_year', 'connectivity_rate',
                                         'connectivity')
-        self.__create_temporal_features('employability_year', 'employability_rate',
+        self._create_temporal_features('employability_year', 'employability_rate',
                                         'employability')
 
 
-    def __get_new_feature(self, row: pd.Series, year_column: str, rate_column: str,
-                          start_year: int, end_year: int):
+    def _get_new_feature(self, row: pd.Series, year_column: str, rate_column: str,
+                         start_year: int, end_year: int):
         years = row[year_column]
         rates = row[rate_column]
 
@@ -585,10 +585,10 @@ class EmployabilityImpactTemporalAnalisys:
         return rates[end_idx] / rates[start_idx]
 
 
-    def __create_temporal_features(self,
-                                   year_column: str,
-                                   rate_column: str,
-                                   prefix: str) -> None:
+    def _create_temporal_features(self,
+                                  year_column: str,
+                                  rate_column: str,
+                                  prefix: str) -> None:
         years = self.df.iloc[0][year_column]
         years = np.sort(years)
         for i in range(years.size-1):
@@ -597,18 +597,18 @@ class EmployabilityImpactTemporalAnalisys:
                 end_year = years[j]
                 new_column = f'{prefix}_{start_year}_{end_year}'
                 self.df[new_column] = self.df.apply(
-                    self.__get_new_feature, axis=1,
+                    self._get_new_feature, axis=1,
                     args=(year_column, rate_column, start_year, end_year))
 
 
-    def __parse_interval_column(self, col: str) -> Tuple[int, int]:
+    def _parse_interval_column(self, col: str) -> Tuple[int, int]:
         temp = col.split('_')
         end_year = int(temp[-1])
         start_year = int(temp[-2])
         return (start_year, end_year)
 
 
-    def __is_valid_range(self, con_time: Tuple[int, int], emp_time: Tuple[int, int]) -> bool:
+    def _is_valid_range(self, con_time: Tuple[int, int], emp_time: Tuple[int, int]) -> bool:
         return con_time[0] <= emp_time[0] and con_time[1] <= emp_time[1]
 
 
@@ -626,9 +626,9 @@ class EmployabilityImpactTemporalAnalisys:
         # Testing all combinations of range periods
         for con_col in connectivity_cols:
             for emp_col in employability_cols:
-                con_range = self.__parse_interval_column(con_col)
-                emp_range = self.__parse_interval_column(emp_col)
-                if not self.__is_valid_range(con_range, emp_range):
+                con_range = self._parse_interval_column(con_col)
+                emp_range = self._parse_interval_column(emp_col)
+                if not self._is_valid_range(con_range, emp_range):
                     continue
 
                 for thA, thB in thresholds_A_B:
@@ -731,12 +731,12 @@ class EmployabilityImpactOutputter:
         }
 
 
-    def __get_set_output(self,
-                         set_df: pd.DataFrame,
-                         connectivity_col: str,
-                         employability_col: str,
-                         connectivity_threshold: float,
-                         ) -> Dict[str, Any]:
+    def _get_set_output(self,
+                        set_df: pd.DataFrame,
+                        connectivity_col: str,
+                        employability_col: str,
+                        connectivity_threshold: float,
+                       ) -> Dict[str, Any]:
         connectivity_values = 100 * (set_df[connectivity_col] - 1)
         employability_values = 100 * (set_df[employability_col] - 1)
         return {
@@ -761,6 +761,6 @@ class EmployabilityImpactOutputter:
         return {
             'connectivity_range': list(best_setting.connectivity_range),
             'employability_range': list(best_setting.employability_range),
-            'A': self.__get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
-            'B': self.__get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
+            'A': self._get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
+            'B': self._get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
         }
