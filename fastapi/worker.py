@@ -1,18 +1,29 @@
-import os
-import traceback
-import pandas as pd
-from pydantic import BaseModel
-import pytest
-
+from typing import Dict, Any
 from celery import Celery, states
 from celery.exceptions import Reject, Ignore
 from celery.utils.log import get_task_logger
+from pydantic import BaseModel
+
+import os
+import traceback
+import numpy as np
+import pandas as pd
+import pytest
+
 from services.internetConnectivityService import (
     SchoolTableProcessor,
     LocalityTableProcessor,
     InternetConnectivityDataLoader,
     InternetConnectivityModel,
     InternetConnectivitySummarizer
+)
+
+from services.employabilityImpactService import (
+    SchoolHistoryTableProcessor,
+    EmployabilityHistoryTableProcessor,
+    EmployabilityImpactDataLoader,
+    EmployabilityImpactTemporalAnalisys,
+    EmployabilityImpactOutputter
 )
 
 class TableSchemaError(Exception):
@@ -108,24 +119,71 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         })
 
 
-@app.task(name="uploadSocialImpactFile_task", acks_late=True)
-def uploadSocialImpactFile_task(locality_history_local_filepath: str,
-                                school_history_local_filepath: str) -> str:
+@app.task(name="uploadEmployabilityImpactFile_task", acks_late=True)
+def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str,
+                                       school_history_local_filepath: str) -> str:
+    response = { 'model_metrics': None, 'result_summary': None,
+                 'table_schemas': { 'employability_history': None, 
+                                    'school_history': None } }
     try:
 
         # Convert raw tables to dataset
-        locality_history_df = pd.read_csv(locality_history_local_filepath, sep=',',
-                                          encoding='utf-8', dtype=object)
+        employability_history_df = pd.read_csv(employability_history_local_filepath, sep=',',
+                                               encoding='utf-8', dtype=object)
         school_history_df = pd.read_csv(school_history_local_filepath, sep=',',
                                         encoding='utf-8', dtype=object)
 
-        response = {
-            'scenario_distribution': {
-                'employability_A': list(range(0, 10)),
-                'employability_B': list(range(5, 15)),
-            }
-        }
-        return response
+        # Preprocess tables
+
+        # Process localities table
+        employability_processor = EmployabilityHistoryTableProcessor()
+        processed_employability = employability_processor.process(employability_history_df)
+        employability_schema_status = { 'is_ok': True, 'failure_cases': None }
+        if not processed_employability.is_ok:
+            failure_cases = processed_employability.failure_cases.to_dict('records')
+            employability_schema_status['is_ok'] = False
+            employability_schema_status['failure_cases'] = failure_cases
+        response['table_schemas']['employability_history'] = employability_schema_status
+
+        # Process schools table
+        processed_employability_df = processed_employability.final_df
+
+        municipality_codes = None
+        if (processed_employability_df is not None
+            and 'municipality_code' in processed_employability_df.columns):
+            municipality_codes = processed_employability_df['municipality_code']
+            municipality_codes = set(municipality_codes.values)
+
+        school_processor = SchoolHistoryTableProcessor(municipality_codes)
+        processed_school = school_processor.process(school_history_df)
+
+        school_schema_status = { 'is_ok': True, 'failure_cases': None }
+        if not processed_school.is_ok:
+            failure_cases = processed_school.failure_cases.to_dict('records')
+            school_schema_status['is_ok'] = False
+            school_schema_status['failure_cases'] = failure_cases
+        response['table_schemas']['school_history'] = school_schema_status
+
+        # Check whether to reject the task
+        if not processed_employability.is_ok or not processed_school.is_ok:
+            raise TableSchemaError({
+                'exc_type': TableSchemaError.__name__,
+                'exc_message': response
+            })
+
+        impact_dl = EmployabilityImpactDataLoader(processed_employability.final_df,
+                                                  processed_school.final_df)
+        impact_dl.setup()
+
+        temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
+        temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
+        setting_df = temporal_analisys.get_result_summary()
+        best_setting = temporal_analisys.get_best_setting()
+
+        outputter = EmployabilityImpactOutputter()
+        output = outputter.get_output(temporal_analisys.df, setting_df,
+                                      best_setting, significance_threshold=0.05)
+        return output
 
     except Exception as ex:
         raise RuntimeError({
