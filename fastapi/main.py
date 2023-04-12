@@ -104,7 +104,9 @@ def run_task(locality_file: UploadFile = File(...),
 @app.post("/task/employability-impact", tags=["employability-impact"], status_code=200)
 def run_employability_impact_task(employability_history_file: UploadFile = File(...),
                                   school_history_file: UploadFile = File(...),
-                                  homogenize_columns: list[str] = None
+                                  connectivity_threshold_A = 2.0,
+                                  connectivity_threshold_B = 1.0,
+                                  municipalities_threshold = 0.03
                                  ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadEmployabilityImpactFile_task"
@@ -122,7 +124,8 @@ def run_employability_impact_task(employability_history_file: UploadFile = File(
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_history_file.file.read())
 
-        args = [employability_local_filepath, school_local_filepath]
+        args = [employability_local_filepath, school_local_filepath,
+                connectivity_threshold_A, connectivity_threshold_B, municipalities_threshold]
         result = celery_app.send_task(task_name, args=args, kwargs=None)
         return JSONResponse({"task_id": result.id})
 

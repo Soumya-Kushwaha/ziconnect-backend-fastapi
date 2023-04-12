@@ -121,7 +121,11 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
 
 @app.task(name="uploadEmployabilityImpactFile_task", acks_late=True)
 def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str,
-                                       school_history_local_filepath: str) -> str:
+                                       school_history_local_filepath: str,
+                                       connectivity_threshold_A: float,
+                                       connectivity_threshold_B: float,
+                                       municipalities_threshold: float
+                                      ) -> str:
     response = { 'model_metrics': None, 'result_summary': None,
                  'table_schemas': { 'employability_history': None, 
                                     'school_history': None } }
@@ -175,8 +179,13 @@ def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str
                                                   processed_school.final_df)
         impact_dl.setup()
 
+        num_municipalities = len(impact_dl.dataset)
+        thresholds_A_B = [(connectivity_threshold_A, connectivity_threshold_B)]
+        num_municipalities_threshold = municipalities_threshold * num_municipalities
+
         temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
-        temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
+        temporal_analisys.generate_settings(thresholds_A_B=thresholds_A_B,
+                                            num_cities_threshold=num_municipalities_threshold)
         setting_df = temporal_analisys.get_result_summary()
         best_setting = temporal_analisys.get_best_setting()
 
