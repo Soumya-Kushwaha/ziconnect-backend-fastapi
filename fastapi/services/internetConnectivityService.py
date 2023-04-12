@@ -20,7 +20,31 @@ import copy
 import pandas as pd
 import pandera as pa
 
-from services.utils import fast_mode
+
+# Reference: https://stackoverflow.com/questions/55562696/how-to-replace-missing-values-with-group-mode-in-pandas
+def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str):
+    """
+    Calculate a column mode, by group, ignoring null values.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame over which to calcualate the mode.
+    key_columns : list of str
+        Columns to groupby for calculation of mode.
+    target_column : str
+        Column for which to calculate the mode.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row for the mode of value_col per key_cols group. If ties,
+        returns the one which is sorted first.
+    """
+    return (df.groupby(key_columns + [target_column]).size()
+              .to_frame('counts').reset_index()
+              .sort_values('counts', ascending=False)
+              .drop_duplicates(subset=key_columns)).drop(columns='counts')
 
 
 class ProcessedTable(object):
@@ -36,23 +60,28 @@ class ProcessedTable(object):
         Table after processing
     failure_cases : pandas.DataFrame
         Failure cases
+    failure_rows : pandas.DataFrame
+        Failure rows
     """
 
     is_ok: bool
     initial_df: pd.DataFrame
     final_df: pd.DataFrame
     failure_cases: pd.DataFrame
+    failure_rows: pd.DataFrame
 
     def __init__(self,
                  is_ok: bool,
                  initial_df: pd.DataFrame,
                  final_df: pd.DataFrame,
                  failure_cases: pd.DataFrame,
+                 failure_rows: pd.DataFrame
                 ) -> None:
         self.is_ok = is_ok
         self.initial_df = initial_df
         self.final_df = final_df
         self.failure_cases = failure_cases
+        self.failure_rows = failure_rows
 
 
 class LocalityTableProcessor:
@@ -102,9 +131,12 @@ class LocalityTableProcessor:
             df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
+            failure_rows = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
             is_ok = False
             failure_cases = err.failure_cases
+            error_indices = err.failure_cases['index'].unique()
+            failure_rows = err.data.iloc[error_indices]
             err.failure_cases['index'] += 2 # Add 2 to skip header and 0-indexs
 
         return ProcessedTable(
@@ -112,6 +144,7 @@ class LocalityTableProcessor:
             initial_df    = initial_df,
             final_df      = df,
             failure_cases = failure_cases,
+            failure_rows  = failure_rows,
         )
 
 
@@ -219,9 +252,12 @@ class SchoolTableProcessor:
             df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
+            failure_rows = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
             is_ok = False
             failure_cases = err.failure_cases
+            error_indices = err.failure_cases['index'].unique()
+            failure_rows = err.data.iloc[error_indices]
             err.failure_cases['index'] += 2 # Add 2 to skip header and 0-indexs
 
         return ProcessedTable(
@@ -229,6 +265,7 @@ class SchoolTableProcessor:
             initial_df    = initial_df,
             final_df      = df,
             failure_cases = failure_cases,
+            failure_rows  = failure_rows,
         )
 
 

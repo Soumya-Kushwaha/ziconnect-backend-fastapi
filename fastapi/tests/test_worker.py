@@ -1,5 +1,5 @@
 from unittest.mock import patch
-from worker import uploadFile_task, uploadEmployabilityImpactFile_task
+from worker import uploadFile_task, uploadSocialImpactFile_task
 
 import unittest
 
@@ -11,11 +11,11 @@ def test_uploadFile_task(return_uploadFile_mock):
     except AssertionError as msg:
         print(msg)
 
-@patch('worker.uploadEmployabilityImpactFile_task')
-def test_uploadEmployabilityImpactFile_task(return_uploadEmployabilityImpactFile_mock):
+@patch('worker.uploadSocialImpactFile_task')
+def test_uploadSocialImpactFile_task(return_uploadSocialImpactFile_mock):
     try:
-        uploadEmployabilityImpactFile_task.apply()
-        assert return_uploadEmployabilityImpactFile_mock.called
+        uploadSocialImpactFile_task.apply()
+        assert return_uploadSocialImpactFile_mock.called
     except AssertionError as msg:
         print(msg)
 
