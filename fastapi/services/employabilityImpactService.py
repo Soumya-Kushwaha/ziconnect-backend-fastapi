@@ -1,4 +1,4 @@
-from typing import Optional, Union, List, Tuple, Set
+from typing import Optional, Union, List, Tuple, Set, Dict, Any
 from ast import literal_eval
 from collections import Counter
 from services.utils import fast_mode, convert_to_list, parse_int, parse_boolean
@@ -333,8 +333,8 @@ class EmployabilityHistoryTableProcessor:
             'state_name':         'string',
             'municipality_code':  'string',
             'municipality_name':  'string',
-            'hdi':                'Float32',
-            'population_size':    'Int32',
+            'hdi':                'float',
+            'population_size':    'int',
             'years':              'object',
             'employability_rate': 'object'
         })
@@ -440,9 +440,23 @@ class EmployabilityImpactDataLoader:
 class Setting:
 
 
-    def __init__(self, df: pd.DataFrame, connectivity_col: str, employability_col: str,
-                 filter_A: str, filter_B: str, significance_test: bool = False) -> None:
-
+    def __init__(self,
+                 df: pd.DataFrame,
+                 connectivity_range: Tuple[int, int],
+                 employability_range: Tuple[int, int],
+                 connectivity_threshold_A: float,
+                 connectivity_threshold_B: float,
+                 connectivity_col: str,
+                 employability_col: str,
+                 filter_A: str,
+                 filter_B: str,
+                 min_n_cities_test: int = 100,
+                 significance_test: bool = False
+                ) -> None:
+        self.connectivity_range = connectivity_range
+        self.employability_range = employability_range
+        self.connectivity_threshold_A = connectivity_threshold_A
+        self.connectivity_threshold_B = connectivity_threshold_B
         self.connectivity_col = connectivity_col
         self.employability_col = employability_col
         self.filter_A = filter_A
@@ -451,15 +465,19 @@ class Setting:
         A, B = self.get_sets(df)
         self.__set_statistics(A, B, employability_col)
 
-        if significance_test and self.n_cities_A >= 200 and self.n_cities_B >= 200:
+        self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
+        if (significance_test
+            and self.n_cities_A >= min_n_cities_test
+            and self.n_cities_B >= min_n_cities_test):
             self.p_value_ks_greater, self.p_value_ks_less = \
                 self.__get_significance_test(A, B, employability_col)
-        else:
-            self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
 
 
     def get_infos(self):
-        infos = [self.connectivity_col, self.employability_col,
+        infos = [self.connectivity_range[0], self.connectivity_range[1],
+                 self.employability_range[0], self.employability_range[1],
+                 self.connectivity_threshold_A, self.connectivity_threshold_B,
+                 self.connectivity_col, self.employability_col,
                  self.filter_A, self.filter_B,
                  self.n_cities_A, self.n_cities_B,
                  self.employability_mean_A, self.employability_mean_B,
@@ -470,7 +488,10 @@ class Setting:
                  self.HDI_std_A, self.HDI_std_B,
                  self.p_value_ks_greater,  self.p_value_ks_less]
 
-        head  =  ['connectivity', 'employability',
+        head  =  ['connectivity_year_start', 'connectivity_year_end',
+                  'employability_year_start', 'employability_year_end',
+                  'connectivity_threshold_A', 'connectivity_threshold_B',
+                  'connectivity', 'employability',
                   'threshold_A', 'threshold_B',
                   'n_cities_A', 'n_cities_B',
                   'employability_mean_A', 'employability_mean_B',
@@ -497,7 +518,7 @@ class Setting:
         return A, B
 
 
-    def __set_statistics(self, A: pd.DataFrame, B: pd.DataFrame, 
+    def __set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
                          employability_col: str) -> None:
         self.n_cities_A = A.shape[0]
         self.n_cities_B = B.shape[0]
@@ -557,7 +578,7 @@ class EmployabilityImpactTemporalAnalisys:
         end_indices = np.where(years == end_year)[0]
         if start_indices.size == 0 or end_indices.size == 0:
             return np.nan
-    
+
         start_idx = start_indices[0]
         end_idx = end_indices[0]
         if np.isclose(rates[start_idx], 0):
@@ -581,7 +602,7 @@ class EmployabilityImpactTemporalAnalisys:
                     args=(year_column, rate_column, start_year, end_year))
 
 
-    def __get_time(self, col: str) -> Tuple[int, int]:
+    def __parse_interval_column(self, col: str) -> Tuple[int, int]:
         temp = col.split('_')
         end_year = int(temp[-1])
         start_year = int(temp[-2])
@@ -606,22 +627,144 @@ class EmployabilityImpactTemporalAnalisys:
         # Testing all combinations of range periods
         for con_col in connectivity_cols:
             for emp_col in employability_cols:
-                if not self.__is_valid_range(self.__get_time(con_col),
-                                             self.__get_time(emp_col)):
+                con_range = self.__parse_interval_column(con_col)
+                emp_range = self.__parse_interval_column(emp_col)
+                if not self.__is_valid_range(con_range, emp_range):
                     continue
+
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
-                    self.settings.append(Setting(self.df, con_col, emp_col,
+                    self.settings.append(Setting(self.df, 
+                                                 con_range, emp_range,
+                                                 thA, thB,
+                                                 con_col, emp_col,
                                                  filter_A, filter_B,
+                                                 min_n_cities_test=100,
                                                  significance_test=True))
 
 
-    def get_summary(self) -> pd.DataFrame:
+    def get_best_setting(self, significance_test: bool=True) -> Setting:
+        best_setting = None
+        best_ratio = 0
+        for setting in self.settings:
+            if significance_test and (np.isnan(setting.p_value_ks_greater)
+                or setting.p_value_ks_greater > 0.05):
+                continue
+            if setting.employability_ratio_A_B > best_ratio:
+                best_setting = setting
+                best_ratio = setting.employability_ratio_A_B
+        return best_setting
+
+
+    def get_result_summary(self) -> pd.DataFrame:
         # assuming the settings have already been generated
         columns = self.settings[0].get_infos()[0]
         data_df = [setting.get_infos()[1] for setting in self.settings]
         return pd.DataFrame(data_df, columns=columns)
+
+
+class EmployabilityImpactOutputter:
+
+
+    def get_output(self,
+                   temporal_analisys_df: pd.DataFrame,
+                   setting_df: pd.DataFrame,
+                   best_setting: Setting,
+                   significance_threshold: float = 0.05
+                  ) -> Dict:
+        scenario_distribution_output = \
+            self.get_scenario_distribution_output(setting_df, significance_threshold)
+
+        best_setting_output = \
+            self.get_best_scenario_output(temporal_analisys_df, best_setting)
+
+        return {
+            'all_scenarios': scenario_distribution_output,
+            'best_scenario': best_setting_output,
+        }
+
+
+    def get_scenario_distribution_output(self,
+                                         setting_df: pd.DataFrame, 
+                                         significance_threshold: float = 0.05
+                                         ) -> Dict[str, Any]:
+        greater_filter = f'(employability_ratio_A_B>1.00001 and pval_ks_greater<{significance_threshold})'
+        less_filter = f'(employability_ratio_A_B<0.9999 and pval_ks_less<{significance_threshold})'
+
+        greater_count = len(setting_df.query(greater_filter))
+        less_count = len(setting_df.query(less_filter))
+        not_computed_count = len(setting_df[
+            (setting_df['pval_ks_less'].isna()) &
+            (setting_df['pval_ks_greater'].isna())
+        ])
+        equal_count = len(setting_df) - greater_count - less_count - not_computed_count
+
+        connectivity_range = [setting_df['connectivity_year_start'].min(),
+                              setting_df['connectivity_year_end'].max()]
+        employability_range = [setting_df['employability_year_start'].min(),
+                                 setting_df['employability_year_end'].max()]
+
+        connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
+                                                  'connectivity_threshold_B']].values.tolist()
+        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])        
+        connectivity_thresholds_A_B = [f'({x[0]}, {x[1]})' for x in connectivity_thresholds_A_B]
+
+        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
+        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
+        return {
+            'num_scenarios': len(setting_df),
+            'connectivity_range': connectivity_range,
+            'employability_range': employability_range,
+            'connectivity_thresholds_A_B': connectivity_thresholds_A_B,
+            'employability_rate': {
+                'mean_by_scenario': {
+                    'A': employability_mean_A.round(2).tolist(),
+                    'B': employability_mean_B.round(2).tolist(),
+                },
+                'is_A_greater_than_B_by_scenario': {
+                    'yes': greater_count,
+                    'equal': equal_count,
+                    'no': less_count,
+                    'not_computed': not_computed_count,
+                }
+            }
+        }
+
+
+    def __get_set_output(self,
+                         set_df: pd.DataFrame,
+                         connectivity_col: str,
+                         employability_col: str,
+                         connectivity_threshold: float,
+                         ) -> Dict[str, Any]:
+        connectivity_values = 100 * (set_df[connectivity_col] - 1)
+        employability_values = 100 * (set_df[employability_col] - 1)
+        return {
+            'connectivity_threshold': connectivity_threshold,
+            'num_municipalities': len(set_df),
+            'municipality_name': set_df['municipality_name'].tolist(),
+            'state_name': set_df['state_name'].tolist(),
+            'hdi': set_df['hdi'].tolist(),
+            'population_size': set_df['population_size'].tolist(),
+            'connectivity_rate': connectivity_values.round(2).tolist(),
+            'employability_rate': employability_values.round(2).tolist(),
+        }
+
+
+    def get_best_scenario_output(self,
+                                 temporal_analisys_df: pd.DataFrame,
+                                 best_setting: Setting
+                                ) -> Dict[str, Any]:
+        A, B = best_setting.get_sets(temporal_analisys_df)
+        con_col = best_setting.connectivity_col
+        emp_col = best_setting.employability_col
+        return {
+            'connectivity_range': list(best_setting.connectivity_range),
+            'employability_range': list(best_setting.employability_range),
+            'A': self.__get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
+            'B': self.__get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
+        }
 
 
 if __name__ == '__main__':
@@ -693,15 +836,16 @@ if __name__ == '__main__':
     impact_dl.setup()
 
     valid_states = [
-        "Ceará",
-        "Paraíba",
-        "Piauí",
-        "Pará" ,
         "Alagoas",
-        "Rio Grande do Norte",
-        "Pernambuco",
-        "Sergipe",
+        "Ceará",
+        "Bahia",
         "Maranhão",
+        "Pará" ,
+        "Paraíba",
+        "Pernambuco",
+        "Piauí",
+        "Rio Grande do Norte",
+        "Sergipe",
     ]
 
     print(impact_dl.dataset.shape)
@@ -712,20 +856,31 @@ if __name__ == '__main__':
     temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
     temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
 
-    setting_df = temporal_analisys.get_summary()
-    setting_df.query('n_cities_A>=200 and n_cities_B>=200', inplace=True)
-    setting_df.sort_values(by=['employability_ratio_A_B'], ascending=False, inplace=True)
-    with open('temporal_analisys.csv', 'w') as f:
-        f.write(setting_df.to_csv(index=False))
+    setting_df = temporal_analisys.get_result_summary()
+    best_setting = temporal_analisys.get_best_setting()
 
-    query = '(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'
-    query += ' or '
-    query += '(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'
-    setting_df = setting_df.query(query)
+    outputter = EmployabilityImpactOutputter()
+    output = outputter.get_output(temporal_analisys.df, setting_df,
+                                  best_setting, 0.05)
 
-    employability_mean_A = setting_df.employability_mean_A
-    employability_mean_B = setting_df.employability_mean_B
-    num_settings = len(setting_df)
-    improved_count = (employability_mean_A > employability_mean_B).sum()
-    print(improved_count, num_settings)
-    print(np.round((improved_count * 100) / num_settings, 4))
+    import json
+    print(json.dumps(output['all_scenarios']))
+    print()
+    print(json.dumps(output['best_scenario']))
+
+    # setting_df.query('n_cities_A>=200 and n_cities_B>=200', inplace=True)
+    # setting_df.sort_values(by=['employability_ratio_A_B'], ascending=False, inplace=True)
+    # with open('temporal_analisys.csv', 'w') as f:
+    #     f.write(setting_df.to_csv(index=False))
+
+    # query = '(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'
+    # query += ' or '
+    # query += '(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'
+    # setting_df = setting_df.query(query)
+
+    # employability_mean_A = setting_df.employability_mean_A
+    # employability_mean_B = setting_df.employability_mean_B
+    # num_settings = len(setting_df)
+    # improved_count = (employability_mean_A > employability_mean_B).sum()
+    # print(improved_count, num_settings)
+    # print(np.round((improved_count * 100) / num_settings, 4))

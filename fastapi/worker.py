@@ -1,13 +1,15 @@
+from typing import Dict, Any
+from celery import Celery, states
+from celery.exceptions import Reject, Ignore
+from celery.utils.log import get_task_logger
+from pydantic import BaseModel
+
 import os
 import traceback
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
 import pytest
 
-from celery import Celery, states
-from celery.exceptions import Reject, Ignore
-from celery.utils.log import get_task_logger
 from services.internetConnectivityService import (
     SchoolTableProcessor,
     LocalityTableProcessor,
@@ -20,7 +22,8 @@ from services.employabilityImpactService import (
     SchoolHistoryTableProcessor,
     EmployabilityHistoryTableProcessor,
     EmployabilityImpactDataLoader,
-    EmployabilityImpactTemporalAnalisys
+    EmployabilityImpactTemporalAnalisys,
+    EmployabilityImpactOutputter
 )
 
 class TableSchemaError(Exception):
@@ -169,23 +172,18 @@ def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str
             })
 
         impact_dl = EmployabilityImpactDataLoader(processed_employability.final_df,
-                                              processed_school.final_df)
+                                                  processed_school.final_df)
         impact_dl.setup()
 
         temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
         temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
-        setting_df = temporal_analisys.get_summary()
+        setting_df = temporal_analisys.get_result_summary()
+        best_setting = temporal_analisys.get_best_setting()
 
-        
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
-        response = {
-            'scenario_distribution': {
-                'employability_A': employability_mean_A.round(4).tolist(),
-                'employability_B': employability_mean_B.round(4).tolist(),
-            }
-        }
-        return response
+        outputter = EmployabilityImpactOutputter()
+        output = outputter.get_output(temporal_analisys.df, setting_df,
+                                      best_setting, significance_threshold=0.05)
+        return output
 
     except Exception as ex:
         raise RuntimeError({
