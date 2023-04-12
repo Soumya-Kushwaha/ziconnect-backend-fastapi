@@ -6,7 +6,10 @@ from services.internetConnectivityService import (
     ProcessedTable,
     LocalityTableProcessor,
     SchoolTableProcessor,
-    StudentCountEstimator
+    StudentCountEstimator,
+    InternetConnectivityDataLoader,
+    InternetConnectivityModel,
+    InternetConnectivitySummarizer
 )
 
 
@@ -184,6 +187,272 @@ class TestStudentCountEstimator(unittest.TestCase):
 
         student_count = [150, 150, 150, 200, 250, 250, 250, 225]
         self.assertListEqual(estimated_df['student_count'].values.tolist(), student_count)
+
+
+class TestInternetConnectivityDataLoader(unittest.TestCase):
+
+
+    def setUp(self):
+        localities = [
+            ('FR', 'France', 'FR-01', 'Ain', 'FR-01-001', 'Bourg-en-Bresse'),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-001', 'Los Angeles'),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-002', 'San Francisco'),
+        ]
+
+        columns = ['country_code', 'country_name', 'state_code', 'state_name',
+                   'municipality_code', 'municipality_name']
+        self.locality_df = pd.DataFrame(localities, columns=columns)
+
+        schools = [
+            (1,    'School 1', 'State',        'Rural',   100, 1.0, 6.0, 'FR-01-001', True),
+            (2,    'School 2', 'Municipality', 'Urban',   200, 2.0, 5.0, 'US-CA-001', False),
+            (3,    'School 3', 'Federal',      'Rural',   300, 3.0, 4.0, 'US-CA-001', None)
+        ]
+
+        columns = ['school_code', 'school_name', 'school_type', 'school_region',
+                   'student_count', 'latitude', 'longitude', 'municipality_code',
+                   'internet_availability']
+        self.school_df = pd.DataFrame(schools, columns=columns)
+
+
+    def test_data_loader(self):
+        dl = InternetConnectivityDataLoader(self.locality_df, self.school_df)
+        dl.setup()
+
+        self.assertEqual(len(dl.train_dataset), 2)
+        self.assertEqual(len(dl.test_dataset), 1)
+
+        columns = ['latitude',  'longitude', 'student_count',
+                   'school_code', 'school_type', 'school_region',
+                   'country_code', 'country_name',
+                   'state_code', 'state_name',
+                   'municipality_code', 'municipality_name',
+                   'internet_availability']
+        self.assertListEqual(dl.train_dataset.columns.values.tolist(), columns)
+        self.assertListEqual(dl.test_dataset.columns.values.tolist(), columns)
+
+        train_row = dl.train_dataset.iloc[0]
+        expected_train_row = {
+            'latitude': 1.0,
+            'longitude': 6.0,
+            'student_count': 100,
+            'school_code': 1,
+            'school_type': 'State',
+            'school_region': 'Rural',
+            'country_code': 'FR',
+            'country_name': 'France',
+            'state_code': 'FR-01',
+            'state_name': 'Ain',
+            'municipality_code': 'FR-01-001',
+            'municipality_name': 'Bourg-en-Bresse',
+            'internet_availability': True
+        }
+        self.assertDictEqual(train_row.to_dict(), expected_train_row)
+
+        test_row = dl.test_dataset.iloc[0]
+        expected_test_row = {
+            'latitude': 3.0,
+            'longitude': 4.0,
+            'student_count': 300,
+            'school_code': 3,
+            'school_type': 'Federal',
+            'school_region': 'Rural',
+            'country_code': 'US',
+            'country_name': 'United States',
+            'state_code': 'US-CA',
+            'state_name': 'California',
+            'municipality_code': 'US-CA-001',
+            'municipality_name': 'Los Angeles',
+            'internet_availability': None
+        }
+        self.assertDictEqual(test_row.to_dict(), expected_test_row)
+
+
+class TestInternetConnectivityModel(unittest.TestCase):
+
+    def setUp(self):
+        self.model = InternetConnectivityModel()
+
+
+    def test_get_classifier_and_param_grid(self):
+
+        classifier, param_grid = self.model.get_classifier_and_param_grid('random_forest')
+
+        self.assertEqual(classifier.__class__.__name__, 'RandomForestClassifier')
+        self.assertDictEqual(param_grid, {
+            'classifier__max_depth': [1, 2, 4, 8, 16, 32],
+            'classifier__min_samples_leaf': [5]
+        })
+
+        classifier, param_grid = self.model.get_classifier_and_param_grid('decision_tree')
+
+        self.assertEqual(classifier.__class__.__name__, 'DecisionTreeClassifier')
+        self.assertDictEqual(param_grid, {
+            'classifier__max_depth': [1, 2, 4, 8, 16, 32],
+            'classifier__min_samples_leaf': [5]
+        })
+
+        classifier, param_grid = self.model.get_classifier_and_param_grid('xgboost')
+        self.assertEqual(classifier.__class__.__name__, 'XGBClassifier')
+        self.assertDictEqual(param_grid, {
+            'classifier__learning_rate': [0.1, 0.2, 0.3],
+            'classifier__n_estimators': [100],
+            'classifier__max_depth': [2, 3, 5]
+        })
+
+
+    def test_prepare_data(self):
+        records = [
+            (100, True),
+            (200, False),
+            (300, None)
+        ]
+        columns = ['student_count', 'internet_availability']
+        df = pd.DataFrame(records, columns=columns)
+
+        X, y = self.model.prepare_data(df)
+        self.assertListEqual(X['student_count'].values.tolist(), [100, 200, 200])
+        self.assertListEqual(y.values.tolist(), [True, False, pd.NA])
+
+        X, y = self.model.prepare_data(df, for_train=False)
+        self.assertListEqual(X['student_count'].values.tolist(), [100, 200, 200])
+        self.assertIsNone(y)
+
+
+class TestInternetConnectivitySummarizer(unittest.TestCase):
+
+    def setUp(self):
+        self.summarizer = InternetConnectivitySummarizer()
+
+    def test_summarize(self):
+        records = [
+            ('FR', 'France', 'FR-01', 'Ain', 'FR-01-001', 'Bourg-en-Bresse', 1, 'School 1', 'State', 'Rural', 100, 1.0, 6.0, True, True),
+            ('FR', 'France', 'FR-01', 'Ain', 'FR-01-001', 'Bourg-en-Bresse', 2, 'School 2', 'Municipality', 'Urban', 200, 2.0, 5.0, False, False),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-001', 'Los Angeles', 3, 'School 3', 'Federal', 'Rural', 300, 3.0, 4.0, True, False),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-001', 'Los Angeles', 4, 'School 4', 'State', 'Urban', 400, 4.0, 3.0, None, True),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-002', 'San Francisco', 5, 'School 5', 'State', 'Rural', 500, 5.0, 2.0, None, False)
+        ]
+
+        columns = ['country_code', 'country_name', 'state_code', 'state_name',
+                     'municipality_code', 'municipality_name', 'school_code',
+                     'school_name', 'school_type', 'school_region',
+                     'student_count', 'latitude', 'longitude',
+                     'internet_availability', 'internet_availability_prediction']        
+
+        result_df = pd.DataFrame(records, columns=columns)
+
+        summary = self.summarizer.compute_statistics_by_locality(result_df)
+
+        self.assertEqual(len(summary), 2 + 2 + 3)
+
+        def search_country_in_list(locality_list, country_code):
+            for locality in locality_list:
+                if (locality["country_code"] == country_code
+                    and locality["state_code"] in [None, ""]
+                    and locality["municipality_code"] in [None, ""]):
+                    return locality
+            return None
+
+        expected_fr_summary = {
+            "country_name": "France",
+            "country_code": "FR",
+            "state_count": 1,
+            "municipality_count": 1,
+            "school_count": 2,
+            "student_count": 300,
+            "internet_availability_by_value": {
+                "No": 1,
+                "Yes": 1
+            },
+            "internet_availability_by_school_region": {
+                "Rural": {
+                    "No": 0,
+                    "Yes": 1
+                },
+                "Urban": {
+                    "No": 1,
+                    "Yes": 0
+                }
+            },
+            "internet_availability_by_school_type": {
+                "Municipality": {
+                    "No": 1,
+                    "Yes": 0
+                },
+                "State": {
+                    "No": 0,
+                    "Yes": 1
+                }
+            },
+            "internet_availability_prediction_by_value": {},
+            "internet_availability_prediction_by_school_region": {},
+            "internet_availability_prediction_by_school_type": {},
+            "state_name": "",
+            "state_code": "",
+            "municipality_name": "",
+            "municipality_code": ""
+        }
+        fr_summary = search_country_in_list(summary, "FR")
+        self.assertDictEqual(fr_summary, expected_fr_summary)
+
+        expected_us_summary = {
+            "country_name": "United States",
+            "country_code": "US",
+            "state_count": 1,
+            "municipality_count": 2,
+            "school_count": 3,
+            "student_count": 1200,
+            "internet_availability_by_value": {
+                "NA": 2,
+                "Yes": 1
+            },
+            "internet_availability_by_school_region": {
+                "Rural": {
+                    "NA": 1,
+                    "Yes": 1
+                },
+                "Urban": {
+                    "NA": 1,
+                    "Yes": 0
+                }
+            },
+            "internet_availability_by_school_type": {
+                "Federal": {
+                    "NA": 0,
+                    "Yes": 1
+                },
+                "State": {
+                    "NA": 2,
+                    "Yes": 0
+                }
+            },
+            "internet_availability_prediction_by_value": {
+                "No": 1,
+                "Yes": 1
+            },
+            "internet_availability_prediction_by_school_region": {
+                "Rural": {
+                    "No": 1,
+                    "Yes": 0
+                },
+                "Urban": {
+                    "No": 0,
+                    "Yes": 1
+                }
+            },
+            "internet_availability_prediction_by_school_type": {
+                "State": {
+                    "No": 1,
+                    "Yes": 1
+                }
+            },
+            "state_name": "",
+            "state_code": "",
+            "municipality_name": "",
+            "municipality_code": ""
+        }
+        us_summary = search_country_in_list(summary, "US")
+        self.assertDictEqual(us_summary, expected_us_summary)
 
 
 if __name__ == '__main__':

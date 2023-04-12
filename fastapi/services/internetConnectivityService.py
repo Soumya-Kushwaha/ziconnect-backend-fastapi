@@ -386,7 +386,7 @@ class InternetConnectivityDataLoader:
         self.output_column = 'internet_availability'
 
 
-    def setup(self) -> bool:
+    def setup(self) -> None:
         # TODO: Validate data
         raw_data = pd.merge(self.school_df, self.locality_df, on=self.merge_key)
 
@@ -479,7 +479,9 @@ class InternetConnectivityModel:
         # Variables used in the models
         # Discriteze categorical variables
         X = input_data
-        y = data[self.output_column].astype(bool) if for_train else None
+        y = None
+        if for_train:
+            y = data[self.output_column].astype("boolean")
         return X, y
 
 
@@ -517,6 +519,8 @@ class InternetConnectivityModel:
                 'classifier__max_depth': [2, 3, 5]
             }
             classifier = XGBClassifier(random_state=0)
+        else:
+            raise ValueError('Invalid classifier name')
         return classifier, param_grid
 
 
