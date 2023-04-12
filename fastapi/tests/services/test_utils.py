@@ -8,7 +8,7 @@ from services.utils import (
 )
 
 
-class TestParseInt(unittest.TestCase):
+class TestUtils(unittest.TestCase):
 
 
     def test_parse_int(self):
@@ -82,3 +82,7 @@ class TestParseInt(unittest.TestCase):
 
         result_dict = fast_mode(df, ['a', 'b'], 'c').set_index(['a', 'b']).to_dict()['c']
         self.assertEqual(result_dict, {(1, 'A'): 1, (1, 'B'): 1, (2, 'A'): 2, (2, 'B'): 1})
+
+
+if __name__ == '__main__':
+    unittest.main()

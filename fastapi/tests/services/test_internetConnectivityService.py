@@ -6,9 +6,7 @@ from services.internetConnectivityService import (
     ProcessedTable,
     LocalityTableProcessor,
     SchoolTableProcessor,
-    StudentCountEstimator,
-    InternetConnectivityDataLoader,
-    InternetConnectivitySummarizer
+    StudentCountEstimator
 )
 
 
@@ -186,3 +184,7 @@ class TestStudentCountEstimator(unittest.TestCase):
 
         student_count = [150, 150, 150, 200, 250, 250, 250, 225]
         self.assertListEqual(estimated_df['student_count'].values.tolist(), student_count)
+
+
+if __name__ == '__main__':
+    unittest.main()
