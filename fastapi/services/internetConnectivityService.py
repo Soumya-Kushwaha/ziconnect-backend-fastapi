@@ -69,12 +69,12 @@ class LocalityTableProcessor:
 
     def __init__(self) -> None:
         self.schema = pa.DataFrameSchema({
-            'country_code':      pa.Column(str, unique=False, nullable=False),
-            'country_name':      pa.Column(str, unique=False, nullable=False),
-            'state_code':        pa.Column(str, unique=False, nullable=False),
-            'state_name':        pa.Column(str, unique=False, nullable=False),
-            'municipality_code': pa.Column(str, unique=True, nullable=False),
-            'municipality_name': pa.Column(str, unique=False, nullable=False),
+            'country_code':      pa.Column('string', unique=False, nullable=False),
+            'country_name':      pa.Column('string', unique=False, nullable=False),
+            'state_code':        pa.Column('string', unique=False, nullable=False),
+            'state_name':        pa.Column('string', unique=False, nullable=False),
+            'municipality_code': pa.Column('string', unique=True, nullable=False),
+            'municipality_name': pa.Column('string', unique=False, nullable=False),
         }, coerce=True, strict=True)
 
 
@@ -182,16 +182,16 @@ class SchoolTableProcessor:
                                                  error='is_valid_municipality_code')
 
         self.schema = pa.DataFrameSchema({
-            'school_code':           pa.Column(str, unique=True, nullable=False),
-            'school_name':           pa.Column(str, unique=False, nullable=False),
-            'school_type':           pa.Column(str, unique=False, nullable=False),
-            'school_region':         pa.Column(str, unique=False, nullable=False),
-            'student_count':         pa.Column(int, unique=False, nullable=True),
-            'latitude':              pa.Column(float, unique=False, nullable=False),
-            'longitude':             pa.Column(float, unique=False, nullable=False),
-            'municipality_code':     pa.Column(str, unique=False, nullable=False,
+            'school_code':           pa.Column('string', unique=True, nullable=False),
+            'school_name':           pa.Column('string', unique=False, nullable=False),
+            'school_type':           pa.Column('string', unique=False, nullable=False),
+            'school_region':         pa.Column('string', unique=False, nullable=False),
+            'student_count':         pa.Column('Int32', unique=False, nullable=True),
+            'latitude':              pa.Column('Float32', unique=False, nullable=False),
+            'longitude':             pa.Column('Float32', unique=False, nullable=False),
+            'municipality_code':     pa.Column('string', unique=False, nullable=False,
                                                checks=isin_municipality_fn),
-            'internet_availability': pa.Column(bool, unique=False, nullable=True)
+            'internet_availability': pa.Column('boolean', unique=False, nullable=True)
         }, coerce=True, strict=True)
 
 
@@ -318,20 +318,23 @@ class StudentCountEstimator(BaseEstimator, TransformerMixin):
 
         # School count by locatily
         counter_map[self.BY_LOCALITY_KEY] = \
-            X.groupby(groupby_columns[:1])['student_count'].median().to_dict()
+            X.groupby(groupby_columns[0])['student_count'].median().to_dict()
 
         return counter_map
 
 
-    def fit(self, X: pd.DataFrame, y: pd.Series=None):
+    def fit(self, X: pd.DataFrame, y: pd.Series=None) -> 'StudentCountEstimator':
         for column in self.LOCALITY_COLUMNS + ['student_count']:
             assert column in X.columns, \
                 f"DataFrame does not contain column '{column}'"
 
+        X_valid = copy.deepcopy(X)
+        X_valid = X_valid[X_valid['student_count'] > 0]
+
         self.locality_counter_maps_ = OrderedDict()
         for column in self.LOCALITY_COLUMNS:
             self.locality_counter_maps_[column] = \
-                self._generate_counter_map(X, column)
+                self._generate_counter_map(X_valid, column)
 
         return self
 
@@ -351,7 +354,7 @@ class StudentCountEstimator(BaseEstimator, TransformerMixin):
             if key in counter_map[self.BY_LOCALITY_REGION_KEY]:
                 return counter_map[self.BY_LOCALITY_REGION_KEY][key]
 
-            key = tuple(key_values[:1])
+            key = key_values[0]
             if key in counter_map[self.BY_LOCALITY_KEY]:
                 return counter_map[self.BY_LOCALITY_KEY][key]
 
