@@ -1,5 +1,4 @@
 from typing import Optional, Union, List, Tuple, Set, Dict, Any
-from ast import literal_eval
 from collections import Counter
 from services.utils import fast_mode, convert_to_list, parse_int, parse_boolean
 
@@ -700,10 +699,10 @@ class EmployabilityImpactOutputter:
         ])
         equal_count = len(setting_df) - greater_count - less_count - not_computed_count
 
-        connectivity_range = [setting_df['connectivity_year_start'].min(),
-                              setting_df['connectivity_year_end'].max()]
-        employability_range = [setting_df['employability_year_start'].min(),
-                                 setting_df['employability_year_end'].max()]
+        connectivity_range = [int(setting_df['connectivity_year_start'].min()),
+                              int(setting_df['connectivity_year_end'].max())]
+        employability_range = [int(setting_df['employability_year_start'].min()),
+                               int(setting_df['employability_year_end'].max())]
 
         connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
                                                   'connectivity_threshold_B']].values.tolist()
@@ -765,122 +764,3 @@ class EmployabilityImpactOutputter:
             'A': self.__get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
             'B': self.__get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
         }
-
-
-if __name__ == '__main__':
-    import sys
-    args = sys.argv
-
-    if len(args) != 3:
-        print('python3 script.py <localities file> <schools file>')
-
-    # Arguments
-    employability_history_filepath = args[1]
-    school_history_filepath = args[2]
-
-    # Files
-    employability_history_df = pd.read_csv(employability_history_filepath, sep=',',
-                                           encoding='utf-8', dtype=object)
-    school_history_df = pd.read_csv(school_history_filepath, sep=',',
-                                    encoding='utf-8', dtype=object)
-
-    # Process localities table
-    employability_processor = EmployabilityHistoryTableProcessor()
-    processed_employability = employability_processor.process(employability_history_df)
-
-    # Process schools table
-    processed_employability_df = processed_employability.final_df
-
-    municipality_codes = None
-    if (processed_employability_df is not None
-        and 'municipality_code' in processed_employability_df.columns):
-        municipality_codes = processed_employability_df['municipality_code']
-        municipality_codes = set(municipality_codes.values)
-
-    school_processor = SchoolHistoryTableProcessor(municipality_codes)
-    processed_school = school_processor.process(school_history_df)
-
-    import json
-    print(processed_employability.initial_df.shape)
-    print(processed_employability.final_df.shape)
-    print(processed_employability.final_df.head())
-    print()
-    print(processed_school.initial_df.shape)
-    print(processed_school.final_df.shape)
-    print(processed_school.final_df.head())
-    print()
-
-    if not processed_employability.is_ok:
-        print("locations")
-        locality_error = {
-            'is_ok': processed_employability.is_ok,
-            'failure_cases': processed_employability.failure_cases.to_dict(orient='records'),
-        }
-        with open('employability_error.json', 'w') as f:
-            f.write(json.dumps(locality_error, indent=4))
-
-    if not processed_school.is_ok:
-        print("schools")
-        school_error = {
-            'is_ok': processed_school.is_ok,
-            'failure_cases': processed_school.failure_cases.to_dict(orient='records'),
-        }
-        with open('school_error.json', 'w') as f:
-            f.write(json.dumps(school_error, indent=4))
-
-    if not processed_employability.is_ok or not processed_school.is_ok:
-        sys.exit(1)
-
-    impact_dl = EmployabilityImpactDataLoader(processed_employability.final_df,
-                                              processed_school.final_df)
-    impact_dl.setup()
-
-    valid_states = [
-        "Alagoas",
-        "Ceará",
-        "Bahia",
-        "Maranhão",
-        "Pará" ,
-        "Paraíba",
-        "Pernambuco",
-        "Piauí",
-        "Rio Grande do Norte",
-        "Sergipe",
-    ]
-
-    print(impact_dl.dataset.shape)
-    states_query = ' or '.join([f'state_name == "{state}"' for state in valid_states])
-    impact_dl.dataset.query(states_query, inplace=True)
-    print(impact_dl.dataset.shape)
-
-    temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
-    temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
-
-    setting_df = temporal_analisys.get_result_summary()
-    best_setting = temporal_analisys.get_best_setting()
-
-    outputter = EmployabilityImpactOutputter()
-    output = outputter.get_output(temporal_analisys.df, setting_df,
-                                  best_setting, 0.05)
-
-    import json
-    print(json.dumps(output['all_scenarios']))
-    print()
-    print(json.dumps(output['best_scenario']))
-
-    # setting_df.query('n_cities_A>=200 and n_cities_B>=200', inplace=True)
-    # setting_df.sort_values(by=['employability_ratio_A_B'], ascending=False, inplace=True)
-    # with open('temporal_analisys.csv', 'w') as f:
-    #     f.write(setting_df.to_csv(index=False))
-
-    # query = '(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'
-    # query += ' or '
-    # query += '(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'
-    # setting_df = setting_df.query(query)
-
-    # employability_mean_A = setting_df.employability_mean_A
-    # employability_mean_B = setting_df.employability_mean_B
-    # num_settings = len(setting_df)
-    # improved_count = (employability_mean_A > employability_mean_B).sum()
-    # print(improved_count, num_settings)
-    # print(np.round((improved_count * 100) / num_settings, 4))
