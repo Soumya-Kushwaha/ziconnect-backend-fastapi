@@ -215,7 +215,7 @@ class TestInternetConnectivityDataLoader(unittest.TestCase):
         self.school_df = pd.DataFrame(schools, columns=columns)
 
 
-    def test_data_loader(self):
+    def test_setup(self):
         dl = InternetConnectivityDataLoader(self.locality_df, self.school_df)
         dl.setup()
 

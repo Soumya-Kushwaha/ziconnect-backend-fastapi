@@ -407,7 +407,7 @@ class EmployabilityImpactDataLoader:
         return connectivity_history_df
 
 
-    def setup(self) -> None:
+    def setup(self, filter_data: bool = True) -> None:
         connecivity_history_df = self._get_connectivity_history()
 
         df = pd.merge(self.employability_history_df, connecivity_history_df,
@@ -421,10 +421,11 @@ class EmployabilityImpactDataLoader:
         df['employability_rate'] = df['employability_rate'].apply(np.array)
 
         # Filters
-        df = df[df['school_count'].apply(lambda x: x >= 10)]
-        df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
-        th = df['hdi'].describe([0.75])['75%']
-        df = df[df['hdi'] <= th]
+        if filter_data:
+            df = df[df['school_count'].apply(lambda x: x >= 10)]
+            df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
+            th = df['hdi'].describe([0.75])['75%']
+            df = df[df['hdi'] <= th]
 
         # Columns needed
         data_columns = self.employability_history_columns + self.connectivity_history_columns
@@ -634,7 +635,7 @@ class EmployabilityImpactTemporalAnalisys:
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
-                    self.settings.append(Setting(self.df, 
+                    self.settings.append(Setting(self.df,
                                                  con_range, emp_range,
                                                  thA, thB,
                                                  con_col, emp_col,
@@ -685,7 +686,7 @@ class EmployabilityImpactOutputter:
 
 
     def get_scenario_distribution_output(self,
-                                         setting_df: pd.DataFrame, 
+                                         setting_df: pd.DataFrame,
                                          significance_threshold: float = 0.05
                                          ) -> Dict[str, Any]:
         greater_filter = f'(employability_ratio_A_B>1.00001 and pval_ks_greater<{significance_threshold})'
