@@ -486,18 +486,16 @@ class Homogenizer:
 
     def kl_divergence(self, p: Dict[Any, float], q: Dict[Any, float],
                       sum_p: float, sum_q: float) -> float:
-        p_keys = set(p.keys())
-        q_keys = set(q.keys())
-        assert p_keys.issubset(q_keys)
-
-        p_values = np.array([p[k] for k in p_keys if p[k] != 0 and q[k] != 0])
-        q_values = np.array([q[k] for k in p_keys if q[k] != 0 and p[k] != 0])
-
-        if len(p_values) == 0:
-            return 0
-        p_perc = p_values / sum_p
-        q_perc = q_values / sum_q
-        return np.sum(p_perc * np.log2(p_perc / q_perc))
+        divergence = 0
+        for key in p:
+            assert key in q
+            if p[key]==0 or q[key]==0:
+                divergence += 0
+            else:
+                p_perc = (p[key]/sum_p)
+                q_perc = (q[key]/sum_q)
+                divergence += p_perc * np.log2(p_perc / q_perc)
+        return divergence
 
 
     def JS_divergence(self, A_freq: Dict[Any, float], B_freq: Dict[Any, float]) -> float:
