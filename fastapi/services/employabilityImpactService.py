@@ -638,7 +638,7 @@ class EmployabilityImpactTemporalAnalisys:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
                     self.settings.append(Setting(
-                        self.df, 
+                        self.df,
                         con_range, emp_range,
                         thA, thB,
                         con_col, emp_col,
@@ -711,18 +711,20 @@ class EmployabilityImpactOutputter:
 
         connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
                                                   'connectivity_threshold_B']].values.tolist()
-        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])        
+        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])
         connectivity_thresholds_A_B = [f'({x[0]}, {x[1]})' for x in connectivity_thresholds_A_B]
 
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
+        valida_setting_df = setting_df[(~setting_df['pval_ks_less'].isna()) |
+                                       (~setting_df['pval_ks_greater'].isna())]
+        employability_mean_A = 100 * (valida_setting_df['employability_mean_A'] - 1)
+        employability_mean_B = 100 * (valida_setting_df['employability_mean_B'] - 1)
         return {
             'num_scenarios': len(setting_df),
             'connectivity_range': connectivity_range,
             'employability_range': employability_range,
             'connectivity_thresholds_A_B': connectivity_thresholds_A_B,
             'employability_rate': {
-                'mean_by_scenario': {
+                'mean_by_valid_scenario': {
                     'A': employability_mean_A.round(2).tolist(),
                     'B': employability_mean_B.round(2).tolist(),
                 },

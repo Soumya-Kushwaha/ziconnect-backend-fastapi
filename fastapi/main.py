@@ -104,9 +104,9 @@ def run_task(locality_file: UploadFile = File(...),
 @app.post("/task/employability-impact", tags=["employability-impact"], status_code=200)
 def run_employability_impact_task(employability_history_file: UploadFile = File(...),
                                   school_history_file: UploadFile = File(...),
-                                  connectivity_threshold_A = 2.0,
-                                  connectivity_threshold_B = 1.0,
-                                  municipalities_threshold = 0.03
+                                  connectivity_threshold_A: float = 2.0,
+                                  connectivity_threshold_B: float = 1.0,
+                                  municipalities_threshold: float = 0.03
                                  ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadEmployabilityImpactFile_task"
