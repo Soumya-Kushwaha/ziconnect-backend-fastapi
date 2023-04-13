@@ -449,7 +449,7 @@ class Setting:
                  employability_col: str,
                  filter_A: str,
                  filter_B: str,
-                 min_n_cities_test: int = 100,
+                 num_cities_threshold: int = 100,
                  significance_test: bool = False
                 ) -> None:
         self.connectivity_range = connectivity_range
@@ -466,8 +466,8 @@ class Setting:
 
         self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
         if (significance_test
-            and self.n_cities_A >= min_n_cities_test
-            and self.n_cities_B >= min_n_cities_test):
+            and self.n_cities_A >= num_cities_threshold
+            and self.n_cities_B >= num_cities_threshold):
             self.p_value_ks_greater, self.p_value_ks_less = \
                 self._get_significance_test(A, B, employability_col)
 
@@ -612,7 +612,10 @@ class EmployabilityImpactTemporalAnalisys:
         return con_time[0] <= emp_time[0] and con_time[1] <= emp_time[1]
 
 
-    def generate_settings(self, thresholds_A_B, replace: bool=True) -> None:
+    def generate_settings(self,
+                          thresholds_A_B: List[Tuple[float, float]],
+                          num_cities_threshold: int=100,
+                          replace: bool=True) -> None:
         if replace:
             self.settings = []
 
@@ -634,13 +637,15 @@ class EmployabilityImpactTemporalAnalisys:
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
-                    self.settings.append(Setting(self.df, 
-                                                 con_range, emp_range,
-                                                 thA, thB,
-                                                 con_col, emp_col,
-                                                 filter_A, filter_B,
-                                                 min_n_cities_test=100,
-                                                 significance_test=True))
+                    self.settings.append(Setting(
+                        self.df,
+                        con_range, emp_range,
+                        thA, thB,
+                        con_col, emp_col,
+                        filter_A, filter_B,
+                        num_cities_threshold=num_cities_threshold,
+                        significance_test=True
+                    ))
 
 
     def get_best_setting(self, significance_test: bool=True) -> Setting:
@@ -706,18 +711,20 @@ class EmployabilityImpactOutputter:
 
         connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
                                                   'connectivity_threshold_B']].values.tolist()
-        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])        
+        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])
         connectivity_thresholds_A_B = [f'({x[0]}, {x[1]})' for x in connectivity_thresholds_A_B]
 
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
+        valida_setting_df = setting_df[(~setting_df['pval_ks_less'].isna()) |
+                                       (~setting_df['pval_ks_greater'].isna())]
+        employability_mean_A = 100 * (valida_setting_df['employability_mean_A'] - 1)
+        employability_mean_B = 100 * (valida_setting_df['employability_mean_B'] - 1)
         return {
             'num_scenarios': len(setting_df),
             'connectivity_range': connectivity_range,
             'employability_range': employability_range,
             'connectivity_thresholds_A_B': connectivity_thresholds_A_B,
             'employability_rate': {
-                'mean_by_scenario': {
+                'mean_by_valid_scenario': {
                     'A': employability_mean_A.round(2).tolist(),
                     'B': employability_mean_B.round(2).tolist(),
                 },
