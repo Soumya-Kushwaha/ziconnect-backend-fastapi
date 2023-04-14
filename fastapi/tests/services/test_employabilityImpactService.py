@@ -329,6 +329,7 @@ class TestSetting(unittest.TestCase):
         self.filter_B = 'connectivity_2010_2015<=1.0'
         self.min_n_cities_test = 2
         self.significance_test = True
+        self.homogenize_sets = False
 
         self.setting = Setting(
             self.setting_df,
@@ -341,7 +342,8 @@ class TestSetting(unittest.TestCase):
             self.filter_A,
             self.filter_B,
             self.min_n_cities_test,
-            self.significance_test
+            self.significance_test,
+            self.homogenize_sets
         )
 
 
