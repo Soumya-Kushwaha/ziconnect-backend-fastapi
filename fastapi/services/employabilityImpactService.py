@@ -3,6 +3,7 @@ from collections import Counter
 from services.utils import fast_mode, convert_to_list, parse_int, parse_boolean
 
 from scipy.stats import ks_2samp
+from sklearn.preprocessing import KBinsDiscretizer
 
 import copy
 import numpy as np
@@ -58,7 +59,7 @@ class SchoolHistoryTableProcessor:
 
     schema: pa.DataFrameSchema
 
-    def __init__(self, municipality_codes: Union[Set, List]) -> None:        
+    def __init__(self, municipality_codes: Union[Set, List]) -> None:
         self.municipality_codes = None
 
         isin_municipality_fn = None
@@ -421,11 +422,8 @@ class EmployabilityImpactDataLoader:
         df['employability_rate'] = df['employability_rate'].apply(np.array)
 
         # Filters
-        if filter_data:
-            df = df[df['school_count'].apply(lambda x: x >= 10)]
-            df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
-            th = df['hdi'].describe([0.75])['75%']
-            df = df[df['hdi'] <= th]
+        df = df[df['school_count'].apply(lambda x: x >= 10)]
+        df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
 
         # Columns needed
         data_columns = self.employability_history_columns + self.connectivity_history_columns
@@ -435,6 +433,208 @@ class EmployabilityImpactDataLoader:
     @property
     def dataset(self) -> pd.DataFrame:
         return self._dataset
+
+
+class Homogenizer:
+
+
+    def __init__(self,
+                 A: pd.DataFrame,
+                 B: pd.DataFrame,
+                 continuous_features: List[str] = [],
+                 categorical_features: List[str] =[],
+                 min_size_A: int =50,
+                 min_size_B: int=50,
+                 n_bins=10
+                ) -> None:
+
+        self.A = A.copy()
+        self.B = B.copy()
+
+        self.A.reset_index(drop=True, inplace=True)
+        self.B.reset_index(drop=True, inplace=True)
+
+        self.min_size_A = min_size_A
+        self.min_size_B = min_size_B
+        self.n_bins = n_bins
+
+        self.features =  [feature for feature in continuous_features]
+        self.features += [feature for feature in categorical_features]
+        self.features = np.array(self.features)
+
+        #quando removemos estados com < 10 cidades, mexemos na distribuição de features
+        # pode ser interessante discretizar só após isso
+        if len(continuous_features) > 0:
+            discretized_A, discretized_B = self.get_discrete_features(A, B, continuous_features)
+            self.A[continuous_features] = discretized_A
+            self.B[continuous_features] = discretized_B
+
+
+    def get_discrete_features(self, A, B, features):
+        discretizer = KBinsDiscretizer(n_bins=self.n_bins, encode='ordinal', strategy='uniform')
+        discretizer.fit(np.concatenate((A[features], B[features]), axis=0))
+        discretized_A = discretizer.transform(A[features].values).astype(int)
+        discretized_B = discretizer.transform(B[features].values).astype(int)
+        return discretized_A, discretized_B
+
+
+    def get_frequence(self, values):
+        unique, counts = np.unique(values, return_counts=True)
+        frequence = {unique[i]:freq for i,freq in enumerate(counts)}
+        return frequence
+
+
+    def kl_divergence(self, p: Dict[Any, float], q: Dict[Any, float],
+                      sum_p: float, sum_q: float) -> float:
+        divergence = 0
+        for key in p:
+            assert key in q
+            if p[key]==0 or q[key]==0:
+                divergence += 0
+            else:
+                p_perc = (p[key]/sum_p)
+                q_perc = (q[key]/sum_q)
+                divergence += p_perc * np.log2(p_perc / q_perc)
+        return divergence
+
+
+    def JS_divergence(self, A_freq: Dict[Any, float], B_freq: Dict[Any, float]) -> float:
+        # compute distributions of attribute for A and B
+        keys = np.unique([list(A_freq.keys()) + list(B_freq.keys())])
+        sum_A = sum(A_freq.values())
+        sum_B = sum(B_freq.values())
+
+        M = {}
+        for key in keys:
+            if key not in A_freq:
+                A_freq[key] = 0
+            if key not in B_freq:
+                B_freq[key] = 0
+            M[key] = 0.5 * (sum_B*A_freq[key] + sum_A*B_freq[key])
+
+        # compute JS divergence
+        A_div = self.kl_divergence(A_freq, M, sum_A, sum_A*sum_B)
+        B_div = self.kl_divergence(B_freq, M, sum_B, sum_A*sum_B)
+        JS = 0.5 * (A_div + B_div)
+        assert JS <= 1.0001
+
+        return JS
+
+
+    def get_divergence(self, A_frequence, B_frequence):
+        return sum(self.JS_divergence(A_frequence[feature], B_frequence[feature])
+                   for feature in self.features)
+
+
+    def remove_states(self):
+        A_states, A_counts = np.unique(self.A['state_name'].values, return_counts=True)
+        B_states, B_counts = np.unique(self.B['state_name'].values, return_counts=True)
+
+        mask_A = A_counts >= 10
+        mask_B = B_counts >= 10
+        states = list(set(A_states[mask_A]) & set(B_states[mask_B]))
+
+        return ~self.A['state_name'].isin(states).values, \
+               ~self.B['state_name'].isin(states).values
+
+
+    def build_hash_series(self, combination_values):
+        self.hash_map = {tuple(value): i for i, value in enumerate(combination_values)}
+
+        def create_hash(row: pd.Series) -> int:
+            tuple_key = tuple([row[col] for col in self.features])
+            return self.hash_map.get(tuple_key, -1)
+        self.A['hash'] = self.A.apply(create_hash, axis=1)
+        self.B['hash'] = self.B.apply(create_hash, axis=1)
+
+        self.hash_to_cities_A = self.A['hash'].reset_index().groupby('hash')['index'].agg(list)
+        self.hash_to_cities_B = self.B['hash'].reset_index().groupby('hash')['index'].agg(list)
+
+
+    def get_divergence_city(self, frequence, min_size, row_values, count_remainder, hash_to_cities):
+        divergence = np.infty
+        city = -1
+        flag = ((count_remainder > min_size) and
+                (self.hash_map[tuple(row_values)] in hash_to_cities.index) and
+                (len(hash_to_cities[self.hash_map[tuple(row_values)]]) > 0))
+
+        if flag:
+            for i, feature in enumerate(self.features):
+                frequence[feature][row_values[i]] -= 1
+
+            divergence = self.get_divergence(self.A_frequence, self.B_frequence)
+            #city = hash_to_cities[hash(tuple(row_values))][0]
+            city = hash_to_cities[self.hash_map[tuple(row_values)]][0]
+
+            for i, feature in enumerate(self.features):
+                frequence[feature][row_values[i]] += 1
+
+        return [divergence, city]
+
+
+
+    def get_homogenized_sets(self):
+        removed_A, removed_B = self.remove_states()
+
+        count_remainder_A = (~removed_A).sum()
+        count_remainder_B = (~removed_B).sum()
+
+        self.A_frequence = {feature: self.get_frequence(self.A[~removed_A][feature].values)
+                            for feature in self.features}
+        self.B_frequence = {feature: self.get_frequence(self.B[~removed_B][feature].values)
+                            for feature in self.features}
+
+        combination_values = pd.concat([self.A.loc[~removed_A, self.features],
+                                        self.B.loc[~removed_B, self.features]])\
+                                .drop_duplicates().values
+
+        self.build_hash_series(combination_values)
+
+        current_div = self.get_divergence(self.A_frequence, self.B_frequence)
+
+        while (count_remainder_A > self.min_size_A)  or  (count_remainder_B > self.min_size_B):
+            A_divergences = np.array([
+                self.get_divergence_city(self.A_frequence, self.min_size_A, row_values,
+                                         count_remainder_A, self.hash_to_cities_A)
+                for row_values in combination_values
+            ])
+
+            B_divergences = np.array([
+                self.get_divergence_city(self.B_frequence, self.min_size_B, row_values,
+                                         count_remainder_B, self.hash_to_cities_B)
+                for row_values in combination_values
+            ])
+
+            min_ind_A = np.argmin(A_divergences[:,0])
+            min_ind_B = np.argmin(B_divergences[:,0])
+
+            min_div_A = A_divergences[min_ind_A][0]
+            min_div_B = B_divergences[min_ind_B][0]
+
+            city_A = int(A_divergences[min_ind_A][1])
+            city_B = int(B_divergences[min_ind_B][1])
+
+            if current_div <= min(min_div_A, min_div_B)+0.00000001:
+                break
+
+            elif min_div_A < min_div_B:
+                removed_A[city_A] = True
+                count_remainder_A -= 1
+                current_div = min_div_A
+                row_values = combination_values[min_ind_A]
+                for i,feature in enumerate(self.features):
+                    self.A_frequence[feature][row_values[i]] -=1
+                self.hash_to_cities_A[self.hash_map[tuple(row_values)]].pop(0)
+            else:
+                removed_B[city_B] = True
+                count_remainder_B -= 1
+                current_div = min_div_B
+                row_values = combination_values[min_ind_B]
+                for i,feature in enumerate(self.features):
+                    self.B_frequence[feature][row_values[i]] -=1
+                self.hash_to_cities_B[self.hash_map[tuple(row_values)]].pop(0)
+
+        return ~removed_A, ~removed_B
 
 
 class Setting:
@@ -450,7 +650,7 @@ class Setting:
                  employability_col: str,
                  filter_A: str,
                  filter_B: str,
-                 min_n_cities_test: int = 100,
+                 num_cities_threshold: int = 100,
                  significance_test: bool = False
                 ) -> None:
         self.connectivity_range = connectivity_range
@@ -461,14 +661,15 @@ class Setting:
         self.employability_col = employability_col
         self.filter_A = filter_A
         self.filter_B = filter_B
+        self.num_cities_threshold = num_cities_threshold
 
         A, B = self.get_sets(df)
         self._set_statistics(A, B, employability_col)
 
         self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
         if (significance_test
-            and self.n_cities_A >= min_n_cities_test
-            and self.n_cities_B >= min_n_cities_test):
+            and self.n_cities_A >= num_cities_threshold
+            and self.n_cities_B >= num_cities_threshold):
             self.p_value_ks_greater, self.p_value_ks_less = \
                 self._get_significance_test(A, B, employability_col)
 
@@ -515,7 +716,19 @@ class Setting:
         A = A[A[self.employability_col] <= threshold_A]
         B = B[B[self.employability_col] <= threshold_B]
 
-        return A, B
+        if len(A) < self.num_cities_threshold or len(B) < self.num_cities_threshold:
+            return A, B
+
+        homogenizer = Homogenizer(
+            A, B,
+            continuous_features = ['hdi', 'population_size'],
+            categorical_features = ['state_name'],
+            min_size_A = self.num_cities_threshold,
+            min_size_B = self.num_cities_threshold,
+            n_bins = 5
+        )
+        ind_A, ind_B = homogenizer.get_homogenized_sets()
+        return A[ind_A], B[ind_B]
 
 
     def _set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
@@ -613,7 +826,10 @@ class EmployabilityImpactTemporalAnalisys:
         return con_time[0] <= emp_time[0] and con_time[1] <= emp_time[1]
 
 
-    def generate_settings(self, thresholds_A_B, replace: bool=True) -> None:
+    def generate_settings(self,
+                          thresholds_A_B: List[Tuple[float, float]],
+                          num_cities_threshold: int=100,
+                          replace: bool=True) -> None:
         if replace:
             self.settings = []
 
@@ -635,13 +851,15 @@ class EmployabilityImpactTemporalAnalisys:
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
-                    self.settings.append(Setting(self.df,
-                                                 con_range, emp_range,
-                                                 thA, thB,
-                                                 con_col, emp_col,
-                                                 filter_A, filter_B,
-                                                 min_n_cities_test=100,
-                                                 significance_test=True))
+                    self.settings.append(Setting(
+                        self.df,
+                        con_range, emp_range,
+                        thA, thB,
+                        con_col, emp_col,
+                        filter_A, filter_B,
+                        num_cities_threshold=num_cities_threshold,
+                        significance_test=True
+                    ))
 
 
     def get_best_setting(self, significance_test: bool=True) -> Setting:
@@ -707,18 +925,20 @@ class EmployabilityImpactOutputter:
 
         connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
                                                   'connectivity_threshold_B']].values.tolist()
-        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])        
+        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])
         connectivity_thresholds_A_B = [f'({x[0]}, {x[1]})' for x in connectivity_thresholds_A_B]
 
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
+        valida_setting_df = setting_df[(~setting_df['pval_ks_less'].isna()) |
+                                       (~setting_df['pval_ks_greater'].isna())]
+        employability_mean_A = 100 * (valida_setting_df['employability_mean_A'] - 1)
+        employability_mean_B = 100 * (valida_setting_df['employability_mean_B'] - 1)
         return {
             'num_scenarios': len(setting_df),
             'connectivity_range': connectivity_range,
             'employability_range': employability_range,
             'connectivity_thresholds_A_B': connectivity_thresholds_A_B,
             'employability_rate': {
-                'mean_by_scenario': {
+                'mean_by_valid_scenario': {
                     'A': employability_mean_A.round(2).tolist(),
                     'B': employability_mean_B.round(2).tolist(),
                 },
