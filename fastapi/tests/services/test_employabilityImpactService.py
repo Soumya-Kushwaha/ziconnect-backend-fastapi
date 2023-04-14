@@ -6,8 +6,12 @@ import unittest
 from services.employabilityImpactService import (
     ProcessedTable,
     EmployabilityHistoryTableProcessor,
-    SchoolHistoryTableProcessor,
+    SchoolHistoryTableProcessor,    
+    EmployabilityImpactDataLoader,
     Homogenizer,
+    Setting,
+    EmployabilityImpactTemporalAnalisys,
+    EmployabilityImpactOutputter
 )
 
 
@@ -132,7 +136,6 @@ class TestSchoolHistoryTableProcessor(unittest.TestCase):
 
     def test_clean_data(self):
         school_history_df = copy.deepcopy(self.school_history_df)
-        print(school_history_df.head())
         cleaned_df = self.table_processor._clean_data(school_history_df)
         self.assertEqual(len(cleaned_df), 4)
 
@@ -159,6 +162,251 @@ class TestSchoolHistoryTableProcessor(unittest.TestCase):
         self.assertTrue(processed_table.initial_df.equals(school_history_df))
         self.assertEqual(len(processed_table.final_df), 4)
         self.assertIsNone(processed_table.failure_cases)
+
+
+class TestEmployabilityImpactDataLoader(unittest.TestCase):
+
+
+    def setUp(self) -> None:
+        localities = [
+            ('FR', 'France', 'FR-01', 'Ain', 'FR-01-001', 'Bourg-en-Bresse', 0.7, 10000, [2016,2017], [1000, 2000]),
+            ('FR', 'France', 'FR-01', 'Aisne', 'FR-01-002', 'Laon', 0.7, 10000, [2016,2017], [1000, 2000]),
+            ('US', 'United States', 'US-CA', 'California', 'US-CA-001', 'Los Angeles', 0.7, 10000, [2016,2017], [1000, 2000]),
+        ]
+
+        columns = ['country_code', 'country_name', 'state_code', 'state_name',
+                   'municipality_code', 'municipality_name', 'hdi', 'population_size',
+                   'years', 'employability_rate']
+        self.employability_history_df = pd.DataFrame(localities, columns=columns)
+
+        schools = [
+            (1, 'School 1', 'FR-01-001', [2016,2017], [True, False]),
+            (2, 'School 2', 'FR-01-002', [2016,2017], [False, True]),
+            (3, 'School 3', 'FR-01-001', [2016,2017], [True, False]),
+            (4, 'School 4', 'FR-01-002', [2016,2017], [True, False]),
+            (5, 'School 5', 'US-CA-001', [2016,2017], [True, True]),
+        ]
+
+        columns = ['school_code', 'school_name', 'municipality_code', 'years', 'internet_availability']
+        self.school_history_df = pd.DataFrame(schools, columns=columns)
+
+        self.data_loader = EmployabilityImpactDataLoader(self.employability_history_df,
+                                                         self.school_history_df)
+
+
+    def _search_municipality_in_df(self, df: pd.DataFrame, municipality_code: str) -> dict:
+        result = df[df['municipality_code'] == municipality_code]
+        if len(result) == 0:
+            return {}
+        return result.iloc[0].to_dict()
+
+
+    def test_get_connectivity_history(self):
+        connectivity_history_df = self.data_loader._get_connectivity_history()
+
+        self.assertEqual(len(connectivity_history_df), 3)
+
+        row_dict = self._search_municipality_in_df(connectivity_history_df, 'FR-01-001')
+        self.assertDictEqual(row_dict, {
+            'municipality_code': 'FR-01-001',
+            'school_count': 2,
+            'connectivity_year': [2016, 2017],
+            'connectivity_rate': [1.0, 0.0]
+        })
+
+        row_dict = self._search_municipality_in_df(connectivity_history_df, 'FR-01-002')
+        self.assertDictEqual(row_dict, {
+            'municipality_code': 'FR-01-002',
+            'school_count': 2,
+            'connectivity_year': [2016, 2017],
+            'connectivity_rate': [0.5, 0.5]
+        })
+
+        row_dict = self._search_municipality_in_df(connectivity_history_df, 'US-CA-001')
+        self.assertDictEqual(row_dict, {
+            'municipality_code': 'US-CA-001',
+            'school_count': 1,
+            'connectivity_year': [2016, 2017],
+            'connectivity_rate': [1.0, 1.0]
+        })
+
+
+    def test_setup(self):
+        self.data_loader.setup(filter_data=False)
+        dataset = self.data_loader.dataset
+
+        self.assertEqual(len(dataset), 3)
+
+        def assertDictEqual(d1: dict, d2: dict):
+            self.assertEqual(len(d1), len(d2))
+            self.assertEqual(set(d1.keys()), set(d2.keys()))
+            for key in d1.keys():
+                if isinstance(d1[key], np.ndarray):
+                    self.assertTrue(np.all(d1[key] == d2[key]))
+                else:
+                    self.assertEqual(d1[key], d2[key])
+
+        row_dict = self._search_municipality_in_df(dataset, 'FR-01-001')
+        assertDictEqual(row_dict, {
+            'country_code': 'FR',
+            'country_name': 'France',
+            'state_code': 'FR-01',
+            'state_name': 'Ain',
+            'municipality_code': 'FR-01-001',
+            'municipality_name': 'Bourg-en-Bresse',
+            'hdi': 0.7,
+            'population_size': 10000,
+            'employability_year': np.array([2016, 2017]),
+            'employability_rate': np.array([1000, 2000]),
+            'connectivity_year': np.array([2016, 2017]),
+            'connectivity_rate': np.array([1.0, 0.0]),
+            'school_count': 2
+        })
+
+        row_dict = self._search_municipality_in_df(dataset, 'FR-01-002')
+        assertDictEqual(row_dict, {
+            'country_code': 'FR',
+            'country_name': 'France',
+            'state_code': 'FR-01',
+            'state_name': 'Aisne',
+            'municipality_code': 'FR-01-002',
+            'municipality_name': 'Laon',
+            'hdi': 0.7,
+            'population_size': 10000,
+            'employability_year': np.array([2016, 2017]),
+            'employability_rate': np.array([1000, 2000]),
+            'school_count': 2,
+            'connectivity_year': np.array([2016, 2017]),
+            'connectivity_rate': np.array([0.5, 0.5])
+        })
+
+        row_dict = self._search_municipality_in_df(dataset, 'US-CA-001')
+        assertDictEqual(row_dict, {
+            'country_code': 'US',
+            'country_name': 'United States',
+            'state_code': 'US-CA',
+            'state_name': 'California',
+            'municipality_code': 'US-CA-001',
+            'municipality_name': 'Los Angeles',
+            'hdi': 0.7,
+            'population_size': 10000,
+            'employability_year': np.array([2016, 2017]),
+            'employability_rate': np.array([1000, 2000]),
+            'school_count': 1,
+            'connectivity_year': np.array([2016, 2017]),
+            'connectivity_rate': np.array([1.0, 1.0])
+        })
+
+
+class TestSetting(unittest.TestCase):
+    
+
+    def setUp(self):
+        records = [
+            (0.50, 2.5, 1.15),
+            (0.70, 3.0, 1.10),
+            (0.60, 2.3, 1.05),
+            (0.80, 2.0, 1.20),
+
+            (0.70, 1.4, 1.15),
+            (0.70, 1.2, 1.15),
+            (0.70, 1.7, 1.15),
+
+            (0.80, 1.0, 1.05),
+            (0.60, 0.8, 1.00),
+            (0.70, 0.5, 1.20),
+        ]
+        columns = ['hdi', 'connectivity_2010_2015', 'employability_2016_2020']
+        self.setting_df = pd.DataFrame(records, columns=columns)
+
+        self.connectivity_range = (2010, 2015)
+        self.employability_range = (2016, 2020)
+        self.connectivity_threshold_A = 2.0
+        self.connectivity_threshold_B = 1.0
+        self.connectivity_col = 'connectivity_2010_2015'
+        self.employability_col = 'employability_2016_2020'
+        self.filter_A = 'connectivity_2010_2015>=2.0'
+        self.filter_B = 'connectivity_2010_2015<=1.0'
+        self.min_n_cities_test = 2
+        self.significance_test = True
+        self.homogenize_sets = False
+
+        self.setting = Setting(
+            self.setting_df,
+            self.connectivity_range,
+            self.employability_range,
+            self.connectivity_threshold_A,
+            self.connectivity_threshold_B,
+            self.connectivity_col,
+            self.employability_col,
+            self.filter_A,
+            self.filter_B,
+            self.min_n_cities_test,
+            self.significance_test,
+            self.homogenize_sets
+        )
+
+
+    def test_get_sets(self):
+        A, B = self.setting.get_sets(self.setting_df)
+        self.assertEqual(len(A), 3)
+        self.assertEqual(len(B), 2)
+
+
+    def test_get_infos(self):
+        columns, row = self.setting.get_infos()
+
+        self.assertEqual(len(columns), 25)
+        self.assertEqual(len(row), 25)
+
+        row_dict = dict(zip(columns, row))
+
+        def assertDictEqual(d1: dict, d2: dict):
+            self.assertEqual(len(d1), len(d2))
+            self.assertEqual(set(d1.keys()), set(d2.keys()))
+            for key in d1.keys():
+                if isinstance(d1[key], float):
+                    if np.isnan(d1[key]) and np.isnan(d2[key]):
+                        continue
+                    self.assertAlmostEqual(d1[key], d2[key], places=3)
+                else:
+                    self.assertEqual(d1[key], d2[key])
+
+        assertDictEqual(row_dict, {
+            'connectivity_year_start': self.connectivity_range[0],
+            'connectivity_year_end': self.connectivity_range[1],
+            'employability_year_start': self.employability_range[0],
+            'employability_year_end': self.employability_range[1],
+            'connectivity_threshold_A': self.connectivity_threshold_A,
+            'connectivity_threshold_B': self.connectivity_threshold_B,
+            'connectivity': self.connectivity_col,
+            'employability': self.employability_col,
+            'threshold_A': self.filter_A,
+            'threshold_B': self.filter_B,
+            'n_cities_A': 3,
+            'n_cities_B': 2,
+            'employability_mean_A': 1.10,
+            'employability_mean_B': 1.025,
+            'employability_max_A': 1.15,
+            'employability_max_B': 1.05,
+            'employability_std_A': 0.05,
+            'employability_std_B': 0.03535,
+            'employability_ratio_A_B': 1.10 / 1.025,
+            'HDI_mean_A': 0.6,
+            'HDI_mean_B': 0.7,
+            'HDI_std_A': 0.1,
+            'HDI_std_B': 0.1414,
+            'pval_ks_greater': 0.3,
+            'pval_ks_less': 1.0
+        })
+
+
+class TestEmployabilityImpactTemporalAnalisys(unittest.TestCase):
+    pass
+
+
+class TestEmployabilityImpactOutputter(unittest.TestCase):
+    pass
 
 
 class TestHomogenizer(unittest.TestCase):

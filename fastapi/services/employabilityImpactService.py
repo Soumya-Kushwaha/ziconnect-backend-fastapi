@@ -408,7 +408,7 @@ class EmployabilityImpactDataLoader:
         return connectivity_history_df
 
 
-    def setup(self) -> None:
+    def setup(self, filter_data: bool = True) -> None:
         connecivity_history_df = self._get_connectivity_history()
 
         df = pd.merge(self.employability_history_df, connecivity_history_df,
@@ -422,8 +422,9 @@ class EmployabilityImpactDataLoader:
         df['employability_rate'] = df['employability_rate'].apply(np.array)
 
         # Filters
-        df = df[df['school_count'].apply(lambda x: x >= 10)]
-        df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
+        if filter_data:
+            df = df[df['school_count'].apply(lambda x: x >= 10)]
+            df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
 
         # Columns needed
         data_columns = self.employability_history_columns + self.connectivity_history_columns
@@ -651,7 +652,8 @@ class Setting:
                  filter_A: str,
                  filter_B: str,
                  num_cities_threshold: int = 100,
-                 significance_test: bool = False
+                 significance_test: bool = False,
+                 homogenize_sets: bool = True
                 ) -> None:
         self.connectivity_range = connectivity_range
         self.employability_range = employability_range
@@ -662,6 +664,7 @@ class Setting:
         self.filter_A = filter_A
         self.filter_B = filter_B
         self.num_cities_threshold = num_cities_threshold
+        self.homogenize_sets = homogenize_sets
 
         A, B = self.get_sets(df)
         self._set_statistics(A, B, employability_col)
@@ -716,7 +719,9 @@ class Setting:
         A = A[A[self.employability_col] <= threshold_A]
         B = B[B[self.employability_col] <= threshold_B]
 
-        if len(A) < self.num_cities_threshold or len(B) < self.num_cities_threshold:
+        if (len(A) < self.num_cities_threshold 
+            or len(B) < self.num_cities_threshold
+            or self.homogenize_sets == False):
             return A, B
 
         homogenizer = Homogenizer(
@@ -727,7 +732,7 @@ class Setting:
             min_size_B = self.num_cities_threshold,
             n_bins = 5
         )
-        ind_A, ind_B = homogenizer.get_homogenized_sets()            
+        ind_A, ind_B = homogenizer.get_homogenized_sets()
         return A[ind_A], B[ind_B]
 
 
