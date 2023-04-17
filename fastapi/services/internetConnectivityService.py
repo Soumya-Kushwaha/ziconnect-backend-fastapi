@@ -481,7 +481,8 @@ class InternetConnectivityModel:
         X = input_data
         y = None
         if for_train:
-            y = data[self.output_column].astype("boolean")
+            assert data[self.output_column].notna().all()
+            y = data[self.output_column].astype(bool)
         return X, y
 
 

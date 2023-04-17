@@ -133,3 +133,4 @@ dmypy.json
 
 # Example python scripts
 example_*.py
+resources/

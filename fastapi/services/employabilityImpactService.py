@@ -888,7 +888,11 @@ class EmployabilityImpactTemporalAnalisys:
 
 
 class EmployabilityImpactOutputter:
+    """ Employability Impact outputter class
 
+    This class is responsible for generating the output for the frontend of the
+    Employability Impact analysis.
+    """
 
     def get_output(self,
                    temporal_analisys_df: pd.DataFrame,
@@ -896,6 +900,27 @@ class EmployabilityImpactOutputter:
                    best_setting: Setting,
                    significance_threshold: float = 0.05
                   ) -> Dict:
+        """ Get the output for the frontend
+
+        Parameters
+        ----------
+        temporal_analisys_df : pd.DataFrame
+            The dataframe containing all cities and their temporal data
+
+        setting_df : pd.DataFrame
+            The dataframe containing all date range settings and their results
+
+        best_setting : Setting
+            The best setting found
+
+        significance_threshold : float
+            The significance threshold to be used for the KS test
+
+        Returns
+        -------
+        Dict
+            The output for the frontend            
+        """
         scenario_distribution_output = \
             self.get_scenario_distribution_output(setting_df, significance_threshold)
 
@@ -912,6 +937,21 @@ class EmployabilityImpactOutputter:
                                          setting_df: pd.DataFrame,
                                          significance_threshold: float = 0.05
                                          ) -> Dict[str, Any]:
+        """ Get the output for the setting distribution of employability ratios
+
+        Parameters
+        ----------
+        setting_df : pd.DataFrame
+            The dataframe containing all date range settings and their results
+
+        significance_threshold : float
+            The significance threshold to be used for the KS test
+
+        Returns
+        -------
+        Dict[str, Any]
+            The output for the setting distribution            
+        """
         greater_filter = f'(employability_ratio_A_B>1.00001 and pval_ks_greater<{significance_threshold})'
         less_filter = f'(employability_ratio_A_B<0.9999 and pval_ks_less<{significance_threshold})'
 
@@ -963,6 +1003,27 @@ class EmployabilityImpactOutputter:
                         employability_col: str,
                         connectivity_threshold: float,
                        ) -> Dict[str, Any]:
+        """ Get information of the cities for a given setting
+
+        Parameters
+        ----------
+        set_df : pd.DataFrame
+            The dataframe containing all cities for a given setting
+
+        connectivity_col : str
+            The column name for the connectivity ratio
+
+        employability_col : str
+            The column name for the employability ratio
+
+        connectivity_threshold : float
+            The connectivity threshold for the setting
+
+        Returns
+        -------
+        Dict[str, Any]
+            The information of the cities for a given setting
+        """
         connectivity_values = 100 * (set_df[connectivity_col] - 1)
         employability_values = 100 * (set_df[employability_col] - 1)
         return {
@@ -972,6 +1033,7 @@ class EmployabilityImpactOutputter:
             'state_name': set_df['state_name'].tolist(),
             'hdi': set_df['hdi'].tolist(),
             'population_size': set_df['population_size'].tolist(),
+            'school_count': set_df['school_count'].tolist(),
             'connectivity_rate': connectivity_values.round(2).tolist(),
             'employability_rate': employability_values.round(2).tolist(),
         }
@@ -981,6 +1043,21 @@ class EmployabilityImpactOutputter:
                                  temporal_analisys_df: pd.DataFrame,
                                  best_setting: Setting
                                 ) -> Dict[str, Any]:
+        """ Get the output for the best setting
+
+        Parameters
+        ----------
+        temporal_analisys_df : pd.DataFrame
+            The dataframe containing all cities and their temporal data
+
+        best_setting : Setting
+            The best setting found
+
+        Returns
+        -------
+        Dict[str, Any]
+            The output for the best setting
+        """
         A, B = best_setting.get_sets(temporal_analisys_df)
         con_col = best_setting.connectivity_col
         emp_col = best_setting.employability_col

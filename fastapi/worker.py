@@ -107,6 +107,13 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         summarizer = InternetConnectivitySummarizer()
         result_summary = summarizer.compute_statistics_by_locality(full_dataset)
 
+        # Append internet availability prediction to the original dataset
+        prediction_map = full_dataset[['school_code', 'internet_availability_prediction']]\
+            .set_index('school_code').to_dict()['internet_availability_prediction']
+        school_df['internet_availability_prediction'] = \
+            school_df['school_code'].map(prediction_map)
+        school_df.to_csv(school_local_filepath, index=False, encoding='utf-8')
+
         response['model_metrics'] = model_metrics
         response['result_summary'] = result_summary
         return response
