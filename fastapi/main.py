@@ -113,7 +113,7 @@ def get_prediction_zip_result(task_id: Union[int, str]) -> StreamingResponse:
         zf = zipfile.ZipFile(s, mode="w", compression=zipfile.ZIP_DEFLATED)
 
         for basename in ['locality', 'school']:
-            filename = f'{task_id}_{basename}.csv'
+            filename = f'{task_id}_{basename}_result.csv'
             filepath = os.path.join(TARGET_DIRPATH, filename)
             if not os.path.exists(filepath):
                 raise FileNotFoundError()
@@ -204,6 +204,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     except HTTPException as ex:
         return JSONResponse(content=ex, status_code=500 )
 
+
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     try:
@@ -264,6 +265,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     except HTTPException as ex:
         return JSONResponse(content=ex, status_code=404)
 
+
 class EncoderObj(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -274,19 +276,23 @@ class EncoderObj(json.JSONEncoder):
         else:
             return json.JSONEncoder.default(self, obj)
 
+
 def decoderObj(obj):
     if '__type__' in obj:
         if obj['__type__'] == '__datetime__':
             return datetime.fromtimestamp(obj['epoch'])
     return obj
 
+
 # Encoder function
 def dumpEncode(obj):
     return json.dumps(obj, cls=EncoderObj)
 
+
 # Decoder function
 def loadDecode(obj):
     return json.loads(obj, object_hook=decoderObj)
+
 
 if __name__ == '__main__':
     import uvicorn

@@ -38,8 +38,8 @@ app.conf.update(result_extended=True, task_track_started=True,
 celery_log = get_task_logger(__name__)
 
 
-@app.task(name="uploadFile_task", acks_late=True)
-def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
+@app.task(name="uploadFile_task", bind=True, acks_late=True)
+def uploadFile_task(self, locality_local_filepath: str, school_local_filepath: str) -> str:
     response = { 'model_metrics': None, 'result_summary': None,
                  'table_schemas': { 'locality': None, 'school': None } }
 
@@ -112,7 +112,17 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
             .set_index('school_code').to_dict()['internet_availability_prediction']
         school_df['internet_availability_prediction'] = \
             school_df['school_code'].map(prediction_map)
-        school_df.to_csv(school_local_filepath, index=False, encoding='utf-8')
+
+        # Save the result
+        dirpath = os.path.dirname(school_local_filepath)
+        school_filename = f'{self.request.id}_school_result.csv'
+        school_output_filepath = os.path.join(dirpath, school_filename)
+        school_df.to_csv(school_output_filepath, index=False, encoding='utf-8')
+
+        dirpath = os.path.dirname(locality_local_filepath)
+        locality_filename = f'{self.request.id}_locality_result.csv'
+        locality_output_filepath = os.path.join(dirpath, locality_filename)
+        processed_locality_df.to_csv(locality_output_filepath, index=False, encoding='utf-8')
 
         response['model_metrics'] = model_metrics
         response['result_summary'] = result_summary

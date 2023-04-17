@@ -402,7 +402,57 @@ class TestSetting(unittest.TestCase):
 
 
 class TestEmployabilityImpactTemporalAnalisys(unittest.TestCase):
-    pass
+    
+
+    def setUp(self) -> None:
+        connectivity_years = np.array([2007, 2008])
+        employability_years = np.array([2014, 2015, 2016])
+        records = [
+            [connectivity_years, np.array([0.6, 0.9]), employability_years, np.array([1000, 2000, 3000])],
+            [connectivity_years, np.array([0.5, 0.5]), employability_years, np.array([2000, 1000, 1500])],
+        ]
+        columns = ['connectivity_year', 'connectivity_rate', 'employability_year', 'employability_rate']
+
+        self.raw_df = pd.DataFrame(records, columns=columns)
+        self.connectivity_years = connectivity_years
+        self.employability_years = employability_years
+
+
+    def test_create_temporal_features(self):
+        temporal_analisys = EmployabilityImpactTemporalAnalisys(self.raw_df)
+
+        expected_columns = {
+            'connectivity_2007_2008',
+            'employability_2014_2015',
+            'employability_2015_2016',
+            'employability_2014_2016',
+        }
+
+        columns = set(temporal_analisys.df.columns.to_list())
+        self.assertTrue(expected_columns.issubset(columns))
+
+        self.assertEqual(temporal_analisys.df['connectivity_2007_2008'].to_list(), [1.5, 1.0])
+        self.assertEqual(temporal_analisys.df['employability_2014_2015'].to_list(), [2.0, 0.5])
+        self.assertEqual(temporal_analisys.df['employability_2015_2016'].to_list(), [1.5, 1.5])
+        self.assertEqual(temporal_analisys.df['employability_2014_2016'].to_list(), [3.0, 0.75])
+
+
+    def test_parse_interval_column(self):
+        temporal_analisys = EmployabilityImpactTemporalAnalisys(self.raw_df)
+
+        self.assertEqual(temporal_analisys._parse_interval_column('connectivity_2007_2008'), (2007, 2008))
+        self.assertEqual(temporal_analisys._parse_interval_column('employability_2014_2015'), (2014, 2015))
+        self.assertEqual(temporal_analisys._parse_interval_column('employability_2015_2016'), (2015, 2016))
+        self.assertEqual(temporal_analisys._parse_interval_column('employability_2014_2016'), (2014, 2016))
+
+
+    def test_is_valid_range(self):
+        temporal_analisys = EmployabilityImpactTemporalAnalisys(self.raw_df)
+
+        self.assertTrue(temporal_analisys._is_valid_range((2007, 2008), (2007, 2008)))
+        self.assertTrue(temporal_analisys._is_valid_range((2007, 2008), (2007, 2009)))
+        self.assertTrue(temporal_analisys._is_valid_range((2007, 2008), (2009, 2010)))
+        self.assertFalse(temporal_analisys._is_valid_range((2008, 2010), (2007, 2010)))
 
 
 class TestEmployabilityImpactOutputter(unittest.TestCase):
