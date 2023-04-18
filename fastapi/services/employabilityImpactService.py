@@ -580,6 +580,10 @@ class Homogenizer:
         count_remainder_A = (~removed_A).sum()
         count_remainder_B = (~removed_B).sum()
 
+        # Avoid computing the divergence if the number of cities is already too small
+        if count_remainder_A < self.min_size_A or count_remainder_B < self.min_size_B:
+            return ~removed_A, ~removed_B
+
         self.A_frequence = {feature: self.get_frequence(self.A[~removed_A][feature].values)
                             for feature in self.features}
         self.B_frequence = {feature: self.get_frequence(self.B[~removed_B][feature].values)
