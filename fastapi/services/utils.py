@@ -40,7 +40,7 @@ def convert_to_list(x: Any, to_type: Callable[[Any], Any]=lambda x: x) -> List:
     return x
         
 # Reference: https://stackoverflow.com/questions/55562696/how-to-replace-missing-values-with-group-mode-in-pandas
-def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str):
+def fast_mode(df: pd.DataFrame, key_columns: List[str], target_column: str) -> pd.DataFrame:
     """
     Calculate a column mode, by group, ignoring null values.
 

@@ -38,8 +38,8 @@ app.conf.update(result_extended=True, task_track_started=True,
 celery_log = get_task_logger(__name__)
 
 
-@app.task(name="uploadFile_task", acks_late=True)
-def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) -> str:
+@app.task(name="uploadFile_task", bind=True, acks_late=True)
+def uploadFile_task(self, locality_local_filepath: str, school_local_filepath: str) -> str:
     response = { 'model_metrics': None, 'result_summary': None,
                  'table_schemas': { 'locality': None, 'school': None } }
 
@@ -107,6 +107,23 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
         summarizer = InternetConnectivitySummarizer()
         result_summary = summarizer.compute_statistics_by_locality(full_dataset)
 
+        # Append internet availability prediction to the original dataset
+        prediction_map = full_dataset[['school_code', 'internet_availability_prediction']]\
+            .set_index('school_code').to_dict()['internet_availability_prediction']
+        school_df['internet_availability_prediction'] = \
+            school_df['school_code'].map(prediction_map)
+
+        # Save the result
+        dirpath = os.path.dirname(school_local_filepath)
+        school_filename = f'{self.request.id}_school_result.csv'
+        school_output_filepath = os.path.join(dirpath, school_filename)
+        school_df.to_csv(school_output_filepath, index=False, encoding='utf-8')
+
+        dirpath = os.path.dirname(locality_local_filepath)
+        locality_filename = f'{self.request.id}_locality_result.csv'
+        locality_output_filepath = os.path.join(dirpath, locality_filename)
+        processed_locality_df.to_csv(locality_output_filepath, index=False, encoding='utf-8')
+
         response['model_metrics'] = model_metrics
         response['result_summary'] = result_summary
         return response
@@ -121,7 +138,11 @@ def uploadFile_task(locality_local_filepath: str, school_local_filepath: str) ->
 
 @app.task(name="uploadEmployabilityImpactFile_task", acks_late=True)
 def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str,
-                                       school_history_local_filepath: str) -> str:
+                                       school_history_local_filepath: str,
+                                       connectivity_threshold_A: float,
+                                       connectivity_threshold_B: float,
+                                       municipalities_threshold: float
+                                      ) -> str:
     response = { 'model_metrics': None, 'result_summary': None,
                  'table_schemas': { 'employability_history': None, 
                                     'school_history': None } }
@@ -175,8 +196,13 @@ def uploadEmployabilityImpactFile_task(employability_history_local_filepath: str
                                                   processed_school.final_df)
         impact_dl.setup()
 
+        num_municipalities = len(impact_dl.dataset)
+        thresholds_A_B = [(connectivity_threshold_A, connectivity_threshold_B)]
+        num_municipalities_threshold = municipalities_threshold * num_municipalities
+
         temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
-        temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
+        temporal_analisys.generate_settings(thresholds_A_B=thresholds_A_B,
+                                            num_cities_threshold=num_municipalities_threshold)
         setting_df = temporal_analisys.get_result_summary()
         best_setting = temporal_analisys.get_best_setting()
 

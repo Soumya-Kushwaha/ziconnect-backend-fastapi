@@ -1,7 +1,9 @@
 import os
 import json
+import io
 import worker
 import requests
+import zipfile
 
 from worker import app as celery_app
 from datetime import datetime
@@ -12,10 +14,11 @@ from typing import Union, Dict
 from celery import Celery, uuid
 from celery.result import AsyncResult
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
+
 
 
 tags_metadata = [
@@ -83,12 +86,12 @@ def run_task(locality_file: UploadFile = File(...),
         task_id = uuid()
 
         # Import Files (Locality / School)
-        locality_filename = f'{task_id}_{locality_file.filename}'
+        locality_filename = f'{task_id}_locality.csv'
         locality_local_filepath = os.path.join(TARGET_DIRPATH, locality_filename)
         with open(locality_local_filepath, mode='wb+') as f:
             f.write(locality_file.file.read())
 
-        school_filename = f'{task_id}_{school_file.filename}'
+        school_filename = f'{task_id}_school.csv'
         school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_file.file.read())
@@ -101,33 +104,68 @@ def run_task(locality_file: UploadFile = File(...),
         return JSONResponse(content=ex, status_code=500)
 
 
+@app.get("/task/prediction/result/{task_id}", tags=["prediction", "result"], status_code=200)
+def get_prediction_zip_result(task_id: Union[int, str]) -> StreamingResponse:
+    zip_filename = "result.zip"
+
+    try:
+        s = io.BytesIO()
+        zf = zipfile.ZipFile(s, mode="w", compression=zipfile.ZIP_DEFLATED)
+
+        for basename in ['locality', 'school']:
+            filename = f'{task_id}_{basename}_result.csv'
+            filepath = os.path.join(TARGET_DIRPATH, filename)
+            if not os.path.exists(filepath):
+                raise FileNotFoundError()
+            zf.write(filepath, filename)
+
+        # Must close zip for all contents to be written
+        zf.close()
+
+        # Grab ZIP file from in-memory, make response with correct MIME-type
+        resp = StreamingResponse(
+            iter([s.getvalue()]),
+            media_type="application/x-zip-compressed",
+            headers={'Content-Disposition': f'attachment;filename={zip_filename}'}
+        )
+        return resp
+    except FileNotFoundError:
+        return StreamingResponse(content=None, status_code=404)
+    except Exception as ex:
+        return StreamingResponse(content=None, status_code=500)
+
+
 @app.post("/task/employability-impact", tags=["employability-impact"], status_code=200)
 def run_employability_impact_task(employability_history_file: UploadFile = File(...),
                                   school_history_file: UploadFile = File(...),
-                                  homogenize_columns: list[str] = None
+                                  connectivity_threshold_A: float = 2.0,
+                                  connectivity_threshold_B: float = 1.0,
+                                  municipalities_threshold: float = 0.03
                                  ) -> JSONResponse: # pragma: no cover
     try:
         task_name = "uploadEmployabilityImpactFile_task"
         task_id = uuid()
 
         # Import Files (Locality / School)
-        employability_filename = f'{task_id}_{employability_history_file.filename}'
+        employability_filename = f'{task_id}_employability_history.csv'
         employability_local_filepath = os.path.join(TARGET_DIRPATH, employability_filename)
         with open(employability_local_filepath, mode='wb+') as f:
             f.write(employability_history_file.file.read())
 
         # Import Files (School)
-        school_filename = f'{task_id}_{school_history_file.filename}'
+        school_filename = f'{task_id}_school_history.csv'
         school_local_filepath = os.path.join(TARGET_DIRPATH, school_filename)
         with open(school_local_filepath, mode='wb+') as f:
             f.write(school_history_file.file.read())
 
-        args = [employability_local_filepath, school_local_filepath]
+        args = [employability_local_filepath, school_local_filepath,
+                connectivity_threshold_A, connectivity_threshold_B, municipalities_threshold]
         result = celery_app.send_task(task_name, args=args, kwargs=None)
         return JSONResponse({"task_id": result.id})
 
     except Exception as ex:
         return JSONResponse(content=ex, status_code=500)
+
 
 def parse_failure_exception(exception: str) -> Dict:
     """Parse the exception message and return its content"""
@@ -165,6 +203,7 @@ def get_result(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
 
     except HTTPException as ex:
         return JSONResponse(content=ex, status_code=500 )
+
 
 @app.get("/task/info/{task_id}", tags=["info"])
 def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
@@ -226,6 +265,7 @@ def get_status(task_id: Union[int, str]) -> JSONResponse: # pragma: no cover
     except HTTPException as ex:
         return JSONResponse(content=ex, status_code=404)
 
+
 class EncoderObj(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
@@ -236,19 +276,23 @@ class EncoderObj(json.JSONEncoder):
         else:
             return json.JSONEncoder.default(self, obj)
 
+
 def decoderObj(obj):
     if '__type__' in obj:
         if obj['__type__'] == '__datetime__':
             return datetime.fromtimestamp(obj['epoch'])
     return obj
 
+
 # Encoder function
 def dumpEncode(obj):
     return json.dumps(obj, cls=EncoderObj)
 
+
 # Decoder function
 def loadDecode(obj):
     return json.loads(obj, object_hook=decoderObj)
+
 
 if __name__ == '__main__':
     import uvicorn

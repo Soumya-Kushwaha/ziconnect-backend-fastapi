@@ -1,9 +1,9 @@
 from typing import Optional, Union, List, Tuple, Set, Dict, Any
-from ast import literal_eval
 from collections import Counter
 from services.utils import fast_mode, convert_to_list, parse_int, parse_boolean
 
 from scipy.stats import ks_2samp
+from sklearn.preprocessing import KBinsDiscretizer
 
 import copy
 import numpy as np
@@ -59,7 +59,7 @@ class SchoolHistoryTableProcessor:
 
     schema: pa.DataFrameSchema
 
-    def __init__(self, municipality_codes: Union[Set, List]) -> None:        
+    def __init__(self, municipality_codes: Union[Set, List]) -> None:
         self.municipality_codes = None
 
         isin_municipality_fn = None
@@ -104,12 +104,12 @@ class SchoolHistoryTableProcessor:
             Processed table information
         """
         df = copy.deepcopy(initial_df)
-        df = self.__preprocess(df)
-        df = self.__clean_data(df)
+        df = self._preprocess(df)
+        df = self._clean_data(df)
 
         try:
             self.schema.validate(df, lazy=True)
-            df = self.__convert_dtypes(df)
+            df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
@@ -125,7 +125,7 @@ class SchoolHistoryTableProcessor:
         )
 
 
-    def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
@@ -138,7 +138,7 @@ class SchoolHistoryTableProcessor:
         return df
 
 
-    def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'municipality_code', 'years', 'internet_availability'}
         if not columns_required.issubset(set(df.columns)):
@@ -159,7 +159,7 @@ class SchoolHistoryTableProcessor:
 
         # Must have data for all years
         years = df['years'].apply(set).values
-        years = set.union(*years)
+        years = set.union(*years) - {None, pd.NA, ''}
         df = df[df['years'].apply(lambda x: set(x) == years)]
 
         # Get only valid cities
@@ -172,7 +172,7 @@ class SchoolHistoryTableProcessor:
         return df
 
 
-    def __convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype({
             'school_code':           'string',
             'school_name':           'string',
@@ -237,13 +237,13 @@ class EmployabilityHistoryTableProcessor:
             Processed table information
         """
         df = copy.deepcopy(initial_df)
-        df = self.__preprocess(df)
-        df = self.__clean_data(df)
-        df = self.__standardize_values(df)
+        df = self._preprocess(df)
+        df = self._clean_data(df)
+        df = self._standardize_values(df)
 
         try:
             self.schema.validate(df, lazy=True)
-            df = self.__convert_dtypes(df)
+            df = self._convert_dtypes(df)
             is_ok = True
             failure_cases = None
         except (pa.errors.SchemaError, pa.errors.SchemaErrors) as err:
@@ -259,7 +259,7 @@ class EmployabilityHistoryTableProcessor:
         )
 
 
-    def __preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'years', 'employability_rate'}
         if not columns_required.issubset(set(df.columns)):
@@ -272,7 +272,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'municipality_code', 'hdi', 'population_size',
                             'years', 'employability_rate'}
@@ -295,7 +295,7 @@ class EmployabilityHistoryTableProcessor:
 
         # Must have data for all years
         years = df['years'].apply(set).values
-        years = set.union(*years)
+        years = set.union(*years) - {None, pd.NA, ''}
         df = df[df['years'].apply(lambda x: set(x) == years)]
 
         # Remove redundant data
@@ -304,7 +304,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __standardize_values(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _standardize_values(self, df: pd.DataFrame) -> pd.DataFrame:
         # It will throwing an error during the validation step
         columns_required = {'country_code', 'country_name',
                             'state_code', 'state_name'}
@@ -325,7 +325,7 @@ class EmployabilityHistoryTableProcessor:
         return df
 
 
-    def __convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _convert_dtypes(self, df: pd.DataFrame) -> pd.DataFrame:
         return df.astype({
             'country_code':       'string',
             'country_name':       'string',
@@ -408,7 +408,7 @@ class EmployabilityImpactDataLoader:
         return connectivity_history_df
 
 
-    def setup(self) -> None:
+    def setup(self, filter_data: bool = True) -> None:
         connecivity_history_df = self._get_connectivity_history()
 
         df = pd.merge(self.employability_history_df, connecivity_history_df,
@@ -422,10 +422,9 @@ class EmployabilityImpactDataLoader:
         df['employability_rate'] = df['employability_rate'].apply(np.array)
 
         # Filters
-        df = df[df['school_count'].apply(lambda x: x >= 10)]
-        df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
-        th = df['hdi'].describe([0.75])['75%']
-        df = df[df['hdi'] <= th]
+        if filter_data:
+            df = df[df['school_count'].apply(lambda x: x >= 10)]
+            df = df[df['employability_rate'].apply(lambda x: (x >= 10).all())]
 
         # Columns needed
         data_columns = self.employability_history_columns + self.connectivity_history_columns
@@ -435,6 +434,212 @@ class EmployabilityImpactDataLoader:
     @property
     def dataset(self) -> pd.DataFrame:
         return self._dataset
+
+
+class Homogenizer:
+
+
+    def __init__(self,
+                 A: pd.DataFrame,
+                 B: pd.DataFrame,
+                 continuous_features: List[str] = [],
+                 categorical_features: List[str] =[],
+                 min_size_A: int =50,
+                 min_size_B: int=50,
+                 n_bins=10
+                ) -> None:
+
+        self.A = A.copy()
+        self.B = B.copy()
+
+        self.A.reset_index(drop=True, inplace=True)
+        self.B.reset_index(drop=True, inplace=True)
+
+        self.min_size_A = min_size_A
+        self.min_size_B = min_size_B
+        self.n_bins = n_bins
+
+        self.features =  [feature for feature in continuous_features]
+        self.features += [feature for feature in categorical_features]
+        self.features = np.array(self.features)
+
+        #quando removemos estados com < 10 cidades, mexemos na distribuição de features
+        # pode ser interessante discretizar só após isso
+        if len(continuous_features) > 0:
+            discretized_A, discretized_B = self.get_discrete_features(A, B, continuous_features)
+            self.A[continuous_features] = discretized_A
+            self.B[continuous_features] = discretized_B
+
+
+    def get_discrete_features(self, A, B, features):
+        discretizer = KBinsDiscretizer(n_bins=self.n_bins, encode='ordinal', strategy='uniform')
+        discretizer.fit(np.concatenate((A[features], B[features]), axis=0))
+        discretized_A = discretizer.transform(A[features].values).astype(int)
+        discretized_B = discretizer.transform(B[features].values).astype(int)
+        return discretized_A, discretized_B
+
+
+    def get_frequence(self, values):
+        unique, counts = np.unique(values, return_counts=True)
+        frequence = {unique[i]:freq for i,freq in enumerate(counts)}
+        return frequence
+
+
+    def kl_divergence(self, p: Dict[Any, float], q: Dict[Any, float],
+                      sum_p: float, sum_q: float) -> float:
+        divergence = 0
+        for key in p:
+            assert key in q
+            if p[key]==0 or q[key]==0:
+                divergence += 0
+            else:
+                p_perc = (p[key]/sum_p)
+                q_perc = (q[key]/sum_q)
+                divergence += p_perc * np.log2(p_perc / q_perc)
+        return divergence
+
+
+    def JS_divergence(self, A_freq: Dict[Any, float], B_freq: Dict[Any, float]) -> float:
+        # compute distributions of attribute for A and B
+        keys = np.unique([list(A_freq.keys()) + list(B_freq.keys())])
+        sum_A = sum(A_freq.values())
+        sum_B = sum(B_freq.values())
+
+        M = {}
+        for key in keys:
+            if key not in A_freq:
+                A_freq[key] = 0
+            if key not in B_freq:
+                B_freq[key] = 0
+            M[key] = 0.5 * (sum_B*A_freq[key] + sum_A*B_freq[key])
+
+        # compute JS divergence
+        A_div = self.kl_divergence(A_freq, M, sum_A, sum_A*sum_B)
+        B_div = self.kl_divergence(B_freq, M, sum_B, sum_A*sum_B)
+        JS = 0.5 * (A_div + B_div)
+        assert JS <= 1.0001
+
+        return JS
+
+
+    def get_divergence(self, A_frequence, B_frequence):
+        return sum(self.JS_divergence(A_frequence[feature], B_frequence[feature])
+                   for feature in self.features)
+
+
+    def remove_states(self):
+        A_states, A_counts = np.unique(self.A['state_name'].values, return_counts=True)
+        B_states, B_counts = np.unique(self.B['state_name'].values, return_counts=True)
+
+        mask_A = A_counts >= 10
+        mask_B = B_counts >= 10
+        states = list(set(A_states[mask_A]) & set(B_states[mask_B]))
+
+        return ~self.A['state_name'].isin(states).values, \
+               ~self.B['state_name'].isin(states).values
+
+
+    def build_hash_series(self, combination_values):
+        self.hash_map = {tuple(value): i for i, value in enumerate(combination_values)}
+
+        def create_hash(row: pd.Series) -> int:
+            tuple_key = tuple([row[col] for col in self.features])
+            return self.hash_map.get(tuple_key, -1)
+        self.A['hash'] = self.A.apply(create_hash, axis=1)
+        self.B['hash'] = self.B.apply(create_hash, axis=1)
+
+        self.hash_to_cities_A = self.A['hash'].reset_index().groupby('hash')['index'].agg(list)
+        self.hash_to_cities_B = self.B['hash'].reset_index().groupby('hash')['index'].agg(list)
+
+
+    def get_divergence_city(self, frequence, min_size, row_values, count_remainder, hash_to_cities):
+        divergence = np.infty
+        city = -1
+        flag = ((count_remainder > min_size) and
+                (self.hash_map[tuple(row_values)] in hash_to_cities.index) and
+                (len(hash_to_cities[self.hash_map[tuple(row_values)]]) > 0))
+
+        if flag:
+            for i, feature in enumerate(self.features):
+                frequence[feature][row_values[i]] -= 1
+
+            divergence = self.get_divergence(self.A_frequence, self.B_frequence)
+            #city = hash_to_cities[hash(tuple(row_values))][0]
+            city = hash_to_cities[self.hash_map[tuple(row_values)]][0]
+
+            for i, feature in enumerate(self.features):
+                frequence[feature][row_values[i]] += 1
+
+        return [divergence, city]
+
+
+
+    def get_homogenized_sets(self):
+        removed_A, removed_B = self.remove_states()
+
+        count_remainder_A = (~removed_A).sum()
+        count_remainder_B = (~removed_B).sum()
+
+        # Avoid computing the divergence if the number of cities is already too small
+        if count_remainder_A < self.min_size_A or count_remainder_B < self.min_size_B:
+            return ~removed_A, ~removed_B
+
+        self.A_frequence = {feature: self.get_frequence(self.A[~removed_A][feature].values)
+                            for feature in self.features}
+        self.B_frequence = {feature: self.get_frequence(self.B[~removed_B][feature].values)
+                            for feature in self.features}
+
+        combination_values = pd.concat([self.A.loc[~removed_A, self.features],
+                                        self.B.loc[~removed_B, self.features]])\
+                                .drop_duplicates().values
+
+        self.build_hash_series(combination_values)
+
+        current_div = self.get_divergence(self.A_frequence, self.B_frequence)
+
+        while (count_remainder_A > self.min_size_A)  or  (count_remainder_B > self.min_size_B):
+            A_divergences = np.array([
+                self.get_divergence_city(self.A_frequence, self.min_size_A, row_values,
+                                         count_remainder_A, self.hash_to_cities_A)
+                for row_values in combination_values
+            ])
+
+            B_divergences = np.array([
+                self.get_divergence_city(self.B_frequence, self.min_size_B, row_values,
+                                         count_remainder_B, self.hash_to_cities_B)
+                for row_values in combination_values
+            ])
+
+            min_ind_A = np.argmin(A_divergences[:,0])
+            min_ind_B = np.argmin(B_divergences[:,0])
+
+            min_div_A = A_divergences[min_ind_A][0]
+            min_div_B = B_divergences[min_ind_B][0]
+
+            city_A = int(A_divergences[min_ind_A][1])
+            city_B = int(B_divergences[min_ind_B][1])
+
+            if current_div <= min(min_div_A, min_div_B)+0.00000001:
+                break
+
+            elif min_div_A < min_div_B:
+                removed_A[city_A] = True
+                count_remainder_A -= 1
+                current_div = min_div_A
+                row_values = combination_values[min_ind_A]
+                for i,feature in enumerate(self.features):
+                    self.A_frequence[feature][row_values[i]] -=1
+                self.hash_to_cities_A[self.hash_map[tuple(row_values)]].pop(0)
+            else:
+                removed_B[city_B] = True
+                count_remainder_B -= 1
+                current_div = min_div_B
+                row_values = combination_values[min_ind_B]
+                for i,feature in enumerate(self.features):
+                    self.B_frequence[feature][row_values[i]] -=1
+                self.hash_to_cities_B[self.hash_map[tuple(row_values)]].pop(0)
+
+        return ~removed_A, ~removed_B
 
 
 class Setting:
@@ -450,8 +655,9 @@ class Setting:
                  employability_col: str,
                  filter_A: str,
                  filter_B: str,
-                 min_n_cities_test: int = 100,
-                 significance_test: bool = False
+                 num_cities_threshold: int = 100,
+                 significance_test: bool = False,
+                 homogenize_sets: bool = True
                 ) -> None:
         self.connectivity_range = connectivity_range
         self.employability_range = employability_range
@@ -461,16 +667,18 @@ class Setting:
         self.employability_col = employability_col
         self.filter_A = filter_A
         self.filter_B = filter_B
+        self.num_cities_threshold = num_cities_threshold
+        self.homogenize_sets = homogenize_sets
 
         A, B = self.get_sets(df)
-        self.__set_statistics(A, B, employability_col)
+        self._set_statistics(A, B, employability_col)
 
         self.p_value_ks_greater, self.p_value_ks_less = (np.nan, np.nan)
         if (significance_test
-            and self.n_cities_A >= min_n_cities_test
-            and self.n_cities_B >= min_n_cities_test):
+            and self.n_cities_A >= num_cities_threshold
+            and self.n_cities_B >= num_cities_threshold):
             self.p_value_ks_greater, self.p_value_ks_less = \
-                self.__get_significance_test(A, B, employability_col)
+                self._get_significance_test(A, B, employability_col)
 
 
     def get_infos(self):
@@ -515,11 +723,25 @@ class Setting:
         A = A[A[self.employability_col] <= threshold_A]
         B = B[B[self.employability_col] <= threshold_B]
 
-        return A, B
+        if (len(A) < self.num_cities_threshold 
+            or len(B) < self.num_cities_threshold
+            or self.homogenize_sets == False):
+            return A, B
+
+        homogenizer = Homogenizer(
+            A, B,
+            continuous_features = ['hdi', 'population_size'],
+            categorical_features = ['state_name'],
+            min_size_A = self.num_cities_threshold,
+            min_size_B = self.num_cities_threshold,
+            n_bins = 5
+        )
+        ind_A, ind_B = homogenizer.get_homogenized_sets()
+        return A[ind_A], B[ind_B]
 
 
-    def __set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
-                         employability_col: str) -> None:
+    def _set_statistics(self, A: pd.DataFrame, B: pd.DataFrame,
+                        employability_col: str) -> None:
         self.n_cities_A = A.shape[0]
         self.n_cities_B = B.shape[0]
         self.employability_mean_A = A[employability_col].mean()
@@ -537,7 +759,7 @@ class Setting:
         self.HDI_std_B = B['hdi'].std()
 
 
-    def __get_significance_test(self, A, B, employability_col):
+    def _get_significance_test(self, A, B, employability_col):
         #test F_B > F_A -> A > B
         _, p_value_ks_g = ks_2samp(B[employability_col],
                                    A[employability_col],
@@ -562,14 +784,14 @@ class EmployabilityImpactTemporalAnalisys:
     def __init__(self, df: pd.DataFrame) -> None:
         self.settings = []
         self.df = df.copy()
-        self.__create_temporal_features('connectivity_year', 'connectivity_rate',
+        self._create_temporal_features('connectivity_year', 'connectivity_rate',
                                         'connectivity')
-        self.__create_temporal_features('employability_year', 'employability_rate',
+        self._create_temporal_features('employability_year', 'employability_rate',
                                         'employability')
 
 
-    def __get_new_feature(self, row: pd.Series, year_column: str, rate_column: str,
-                          start_year: int, end_year: int):
+    def _get_new_feature(self, row: pd.Series, year_column: str, rate_column: str,
+                         start_year: int, end_year: int):
         years = row[year_column]
         rates = row[rate_column]
 
@@ -586,10 +808,10 @@ class EmployabilityImpactTemporalAnalisys:
         return rates[end_idx] / rates[start_idx]
 
 
-    def __create_temporal_features(self,
-                                   year_column: str,
-                                   rate_column: str,
-                                   prefix: str) -> None:
+    def _create_temporal_features(self,
+                                  year_column: str,
+                                  rate_column: str,
+                                  prefix: str) -> None:
         years = self.df.iloc[0][year_column]
         years = np.sort(years)
         for i in range(years.size-1):
@@ -598,22 +820,25 @@ class EmployabilityImpactTemporalAnalisys:
                 end_year = years[j]
                 new_column = f'{prefix}_{start_year}_{end_year}'
                 self.df[new_column] = self.df.apply(
-                    self.__get_new_feature, axis=1,
+                    self._get_new_feature, axis=1,
                     args=(year_column, rate_column, start_year, end_year))
 
 
-    def __parse_interval_column(self, col: str) -> Tuple[int, int]:
+    def _parse_interval_column(self, col: str) -> Tuple[int, int]:
         temp = col.split('_')
         end_year = int(temp[-1])
         start_year = int(temp[-2])
         return (start_year, end_year)
 
 
-    def __is_valid_range(self, con_time: Tuple[int, int], emp_time: Tuple[int, int]) -> bool:
+    def _is_valid_range(self, con_time: Tuple[int, int], emp_time: Tuple[int, int]) -> bool:
         return con_time[0] <= emp_time[0] and con_time[1] <= emp_time[1]
 
 
-    def generate_settings(self, thresholds_A_B, replace: bool=True) -> None:
+    def generate_settings(self,
+                          thresholds_A_B: List[Tuple[float, float]],
+                          num_cities_threshold: int=100,
+                          replace: bool=True) -> None:
         if replace:
             self.settings = []
 
@@ -627,21 +852,23 @@ class EmployabilityImpactTemporalAnalisys:
         # Testing all combinations of range periods
         for con_col in connectivity_cols:
             for emp_col in employability_cols:
-                con_range = self.__parse_interval_column(con_col)
-                emp_range = self.__parse_interval_column(emp_col)
-                if not self.__is_valid_range(con_range, emp_range):
+                con_range = self._parse_interval_column(con_col)
+                emp_range = self._parse_interval_column(emp_col)
+                if not self._is_valid_range(con_range, emp_range):
                     continue
 
                 for thA, thB in thresholds_A_B:
                     filter_A = f'{con_col}>={thA}'
                     filter_B = f'{con_col}<={thB}'
-                    self.settings.append(Setting(self.df, 
-                                                 con_range, emp_range,
-                                                 thA, thB,
-                                                 con_col, emp_col,
-                                                 filter_A, filter_B,
-                                                 min_n_cities_test=100,
-                                                 significance_test=True))
+                    self.settings.append(Setting(
+                        self.df,
+                        con_range, emp_range,
+                        thA, thB,
+                        con_col, emp_col,
+                        filter_A, filter_B,
+                        num_cities_threshold=num_cities_threshold,
+                        significance_test=True
+                    ))
 
 
     def get_best_setting(self, significance_test: bool=True) -> Setting:
@@ -665,7 +892,11 @@ class EmployabilityImpactTemporalAnalisys:
 
 
 class EmployabilityImpactOutputter:
+    """ Employability Impact outputter class
 
+    This class is responsible for generating the output for the frontend of the
+    Employability Impact analysis.
+    """
 
     def get_output(self,
                    temporal_analisys_df: pd.DataFrame,
@@ -673,6 +904,27 @@ class EmployabilityImpactOutputter:
                    best_setting: Setting,
                    significance_threshold: float = 0.05
                   ) -> Dict:
+        """ Get the output for the frontend
+
+        Parameters
+        ----------
+        temporal_analisys_df : pd.DataFrame
+            The dataframe containing all cities and their temporal data
+
+        setting_df : pd.DataFrame
+            The dataframe containing all date range settings and their results
+
+        best_setting : Setting
+            The best setting found
+
+        significance_threshold : float
+            The significance threshold to be used for the KS test
+
+        Returns
+        -------
+        Dict
+            The output for the frontend            
+        """
         scenario_distribution_output = \
             self.get_scenario_distribution_output(setting_df, significance_threshold)
 
@@ -686,9 +938,24 @@ class EmployabilityImpactOutputter:
 
 
     def get_scenario_distribution_output(self,
-                                         setting_df: pd.DataFrame, 
+                                         setting_df: pd.DataFrame,
                                          significance_threshold: float = 0.05
                                          ) -> Dict[str, Any]:
+        """ Get the output for the setting distribution of employability ratios
+
+        Parameters
+        ----------
+        setting_df : pd.DataFrame
+            The dataframe containing all date range settings and their results
+
+        significance_threshold : float
+            The significance threshold to be used for the KS test
+
+        Returns
+        -------
+        Dict[str, Any]
+            The output for the setting distribution            
+        """
         greater_filter = f'(employability_ratio_A_B>1.00001 and pval_ks_greater<{significance_threshold})'
         less_filter = f'(employability_ratio_A_B<0.9999 and pval_ks_less<{significance_threshold})'
 
@@ -700,25 +967,27 @@ class EmployabilityImpactOutputter:
         ])
         equal_count = len(setting_df) - greater_count - less_count - not_computed_count
 
-        connectivity_range = [setting_df['connectivity_year_start'].min(),
-                              setting_df['connectivity_year_end'].max()]
-        employability_range = [setting_df['employability_year_start'].min(),
-                                 setting_df['employability_year_end'].max()]
+        connectivity_range = [int(setting_df['connectivity_year_start'].min()),
+                              int(setting_df['connectivity_year_end'].max())]
+        employability_range = [int(setting_df['employability_year_start'].min()),
+                               int(setting_df['employability_year_end'].max())]
 
         connectivity_thresholds_A_B = setting_df[['connectivity_threshold_A',
                                                   'connectivity_threshold_B']].values.tolist()
-        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])        
+        connectivity_thresholds_A_B = set([tuple(x) for x in connectivity_thresholds_A_B])
         connectivity_thresholds_A_B = [f'({x[0]}, {x[1]})' for x in connectivity_thresholds_A_B]
 
-        employability_mean_A = 100 * (setting_df['employability_mean_A'] - 1)
-        employability_mean_B = 100 * (setting_df['employability_mean_B'] - 1)
+        valida_setting_df = setting_df[(~setting_df['pval_ks_less'].isna()) |
+                                       (~setting_df['pval_ks_greater'].isna())]
+        employability_mean_A = 100 * (valida_setting_df['employability_mean_A'] - 1)
+        employability_mean_B = 100 * (valida_setting_df['employability_mean_B'] - 1)
         return {
             'num_scenarios': len(setting_df),
             'connectivity_range': connectivity_range,
             'employability_range': employability_range,
             'connectivity_thresholds_A_B': connectivity_thresholds_A_B,
             'employability_rate': {
-                'mean_by_scenario': {
+                'mean_by_valid_scenario': {
                     'A': employability_mean_A.round(2).tolist(),
                     'B': employability_mean_B.round(2).tolist(),
                 },
@@ -732,12 +1001,33 @@ class EmployabilityImpactOutputter:
         }
 
 
-    def __get_set_output(self,
-                         set_df: pd.DataFrame,
-                         connectivity_col: str,
-                         employability_col: str,
-                         connectivity_threshold: float,
-                         ) -> Dict[str, Any]:
+    def _get_set_output(self,
+                        set_df: pd.DataFrame,
+                        connectivity_col: str,
+                        employability_col: str,
+                        connectivity_threshold: float,
+                       ) -> Dict[str, Any]:
+        """ Get information of the cities for a given setting
+
+        Parameters
+        ----------
+        set_df : pd.DataFrame
+            The dataframe containing all cities for a given setting
+
+        connectivity_col : str
+            The column name for the connectivity ratio
+
+        employability_col : str
+            The column name for the employability ratio
+
+        connectivity_threshold : float
+            The connectivity threshold for the setting
+
+        Returns
+        -------
+        Dict[str, Any]
+            The information of the cities for a given setting
+        """
         connectivity_values = 100 * (set_df[connectivity_col] - 1)
         employability_values = 100 * (set_df[employability_col] - 1)
         return {
@@ -747,6 +1037,7 @@ class EmployabilityImpactOutputter:
             'state_name': set_df['state_name'].tolist(),
             'hdi': set_df['hdi'].tolist(),
             'population_size': set_df['population_size'].tolist(),
+            'school_count': set_df['school_count'].tolist(),
             'connectivity_rate': connectivity_values.round(2).tolist(),
             'employability_rate': employability_values.round(2).tolist(),
         }
@@ -756,131 +1047,27 @@ class EmployabilityImpactOutputter:
                                  temporal_analisys_df: pd.DataFrame,
                                  best_setting: Setting
                                 ) -> Dict[str, Any]:
+        """ Get the output for the best setting
+
+        Parameters
+        ----------
+        temporal_analisys_df : pd.DataFrame
+            The dataframe containing all cities and their temporal data
+
+        best_setting : Setting
+            The best setting found
+
+        Returns
+        -------
+        Dict[str, Any]
+            The output for the best setting
+        """
         A, B = best_setting.get_sets(temporal_analisys_df)
         con_col = best_setting.connectivity_col
         emp_col = best_setting.employability_col
         return {
             'connectivity_range': list(best_setting.connectivity_range),
             'employability_range': list(best_setting.employability_range),
-            'A': self.__get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
-            'B': self.__get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
+            'A': self._get_set_output(A, con_col, emp_col, best_setting.connectivity_threshold_A),
+            'B': self._get_set_output(B, con_col, emp_col, best_setting.connectivity_threshold_B),
         }
-
-
-if __name__ == '__main__':
-    import sys
-    args = sys.argv
-
-    if len(args) != 3:
-        print('python3 script.py <localities file> <schools file>')
-
-    # Arguments
-    employability_history_filepath = args[1]
-    school_history_filepath = args[2]
-
-    # Files
-    employability_history_df = pd.read_csv(employability_history_filepath, sep=',',
-                                           encoding='utf-8', dtype=object)
-    school_history_df = pd.read_csv(school_history_filepath, sep=',',
-                                    encoding='utf-8', dtype=object)
-
-    # Process localities table
-    employability_processor = EmployabilityHistoryTableProcessor()
-    processed_employability = employability_processor.process(employability_history_df)
-
-    # Process schools table
-    processed_employability_df = processed_employability.final_df
-
-    municipality_codes = None
-    if (processed_employability_df is not None
-        and 'municipality_code' in processed_employability_df.columns):
-        municipality_codes = processed_employability_df['municipality_code']
-        municipality_codes = set(municipality_codes.values)
-
-    school_processor = SchoolHistoryTableProcessor(municipality_codes)
-    processed_school = school_processor.process(school_history_df)
-
-    import json
-    print(processed_employability.initial_df.shape)
-    print(processed_employability.final_df.shape)
-    print(processed_employability.final_df.head())
-    print()
-    print(processed_school.initial_df.shape)
-    print(processed_school.final_df.shape)
-    print(processed_school.final_df.head())
-    print()
-
-    if not processed_employability.is_ok:
-        print("locations")
-        locality_error = {
-            'is_ok': processed_employability.is_ok,
-            'failure_cases': processed_employability.failure_cases.to_dict(orient='records'),
-        }
-        with open('employability_error.json', 'w') as f:
-            f.write(json.dumps(locality_error, indent=4))
-
-    if not processed_school.is_ok:
-        print("schools")
-        school_error = {
-            'is_ok': processed_school.is_ok,
-            'failure_cases': processed_school.failure_cases.to_dict(orient='records'),
-        }
-        with open('school_error.json', 'w') as f:
-            f.write(json.dumps(school_error, indent=4))
-
-    if not processed_employability.is_ok or not processed_school.is_ok:
-        sys.exit(1)
-
-    impact_dl = EmployabilityImpactDataLoader(processed_employability.final_df,
-                                              processed_school.final_df)
-    impact_dl.setup()
-
-    valid_states = [
-        "Alagoas",
-        "Ceará",
-        "Bahia",
-        "Maranhão",
-        "Pará" ,
-        "Paraíba",
-        "Pernambuco",
-        "Piauí",
-        "Rio Grande do Norte",
-        "Sergipe",
-    ]
-
-    print(impact_dl.dataset.shape)
-    states_query = ' or '.join([f'state_name == "{state}"' for state in valid_states])
-    impact_dl.dataset.query(states_query, inplace=True)
-    print(impact_dl.dataset.shape)
-
-    temporal_analisys = EmployabilityImpactTemporalAnalisys(impact_dl.dataset)
-    temporal_analisys.generate_settings(thresholds_A_B=[(2, 1)])
-
-    setting_df = temporal_analisys.get_result_summary()
-    best_setting = temporal_analisys.get_best_setting()
-
-    outputter = EmployabilityImpactOutputter()
-    output = outputter.get_output(temporal_analisys.df, setting_df,
-                                  best_setting, 0.05)
-
-    import json
-    print(json.dumps(output['all_scenarios']))
-    print()
-    print(json.dumps(output['best_scenario']))
-
-    # setting_df.query('n_cities_A>=200 and n_cities_B>=200', inplace=True)
-    # setting_df.sort_values(by=['employability_ratio_A_B'], ascending=False, inplace=True)
-    # with open('temporal_analisys.csv', 'w') as f:
-    #     f.write(setting_df.to_csv(index=False))
-
-    # query = '(employability_ratio_A_B>1.00001 and pval_ks_greater<0.05)'
-    # query += ' or '
-    # query += '(employability_ratio_A_B<0.9999 and pval_ks_less<0.05)'
-    # setting_df = setting_df.query(query)
-
-    # employability_mean_A = setting_df.employability_mean_A
-    # employability_mean_B = setting_df.employability_mean_B
-    # num_settings = len(setting_df)
-    # improved_count = (employability_mean_A > employability_mean_B).sum()
-    # print(improved_count, num_settings)
-    # print(np.round((improved_count * 100) / num_settings, 4))
