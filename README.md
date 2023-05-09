@@ -1,3 +1,4 @@
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi/blob/main/LICENSE)
 [![codecov](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi/branch/master/graph/badge.svg)](https://codecov.io/gh/Jobzi-Artificial-Intelligence/ziconnect-backend-fastapi)
 
 # Predicting school connectivity and employability in Brazil #
